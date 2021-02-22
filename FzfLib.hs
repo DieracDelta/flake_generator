@@ -1,4 +1,4 @@
-module FzfLib (fzfQuery) where
+module FzfLib (fzfQuery, isFlake) where
 
 
 import Data.List as L
@@ -12,3 +12,5 @@ fzfQuery description options =
       selectables = T.toLines $ T.mconcat $ (return . Te.pack) <$> (L.intersperse "\n" options) in
   T.inproc (Te.pack "fzf") fzfOptions selectables
 
+isFlake :: T.Shell T.Line
+isFlake = fzfQuery "Is the input a flake? " ["yes", "no"]
