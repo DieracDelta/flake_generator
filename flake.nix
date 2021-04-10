@@ -1,27 +1,42 @@
 {
-  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-20.09";
-  inputs.flake-utils.url = "github:numtide/flake-utils";
+  inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-20.09";
+    utils.url = "github:numtide/flake-utils";
+    naersk.url = "github:nmattia/naersk";
+    rust-overlay.url = "github:oxalica/rust-overlay";
+  };
 
-  outputs = { self, nixpkgs, flake-utils }:
-    flake-utils.lib.eachDefaultSystem (system:
-      let
-        pkgs = nixpkgs.legacyPackages.${system};
-        hs = pkgs.haskellPackages;
+  outputs = { self, nixpkgs, utils, rust-overlay, naersk }:
+  utils.lib.eachDefaultSystem (system:
+  let pkgs = import nixpkgs {
+    inherit system;
+    overlays = [
+      rust-overlay.overlay
+      (self: super: {
+        rustc = self.latest.rustChannels.nightly.rust;
+        cargo = self.latest.rustChannels.nightly.rust;
+      })
+    ];
+  };
+  naersk-lib = naersk.lib."${system}".override {
+    rustc = pkgs.rustc;
+    cargo = pkgs.cargo;
+  };
+  in rec {
+    packages.flake-generator = naersk-lib.buildPackage {
+      pname = "flake-generator";
+      root = ./.;
+      #buildInputs = with pkgs; [skim];
+    };
+    defaultPackage = packages.flake-generator;
 
+    apps.flake-generator = utils.lib.mkApp {
+      drv = packages.nix-flake-generator;
+    };
+    defaultApp = apps.flake-generator;
 
-        pkg = pkgs.haskell.lib.overrideCabal (hs.callCabal2nix "nix-expr-generator" ./. { }) {
-          executableSystemDepends = [pkgs.fzf];
-        };
-      in {
-        defaultPackage = pkg;
-        packages = { inherit pkgs ; };
-        devShell = pkg.env.overrideAttrs (super: {
-          nativeBuildInputs = with pkgs; super.nativeBuildInputs ++ [
-            hs.cabal-install
-            ghcid
-            hs.haskell-language-server
-          ];
-        });
-      }
-    );
+    devShell = pkgs.mkShell {
+      nativeBuildInputs = with pkgs; [ rustc cargo ];
+    };
+  });
 }
