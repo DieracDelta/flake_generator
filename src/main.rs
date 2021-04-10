@@ -45,12 +45,13 @@ fn get_prompts(action: UserAction) -> Vec<Vec<String>> {
 
 fn query_user_input(prompt: Vec<String>, items: Vec<String>) -> String {
     let agg = | x : Vec<String>| -> String {
-        x.into_iter()
+        x.into_iter().rev()
             .fold("".to_string(),
-            |acc, ele| -> String { format!("{:?}\n{:?}", acc, ele) })
+            |acc, ele| -> String { format!("{}\n{}", acc, ele) })
     };
     let agg_prompt = agg(prompt);
-    let agg_items = agg(items);
+    println!("prompt is:");
+    println!("{}", &agg_prompt);
     let options = SkimOptionsBuilder::default()
         .header(Some(&agg_prompt))
         // a lot...
@@ -60,7 +61,7 @@ fn query_user_input(prompt: Vec<String>, items: Vec<String>) -> String {
         .build()
         .unwrap();
     let item_reader = SkimItemReader::default();
-    let items = item_reader.of_bufread(Cursor::new(""));
+    let items = item_reader.of_bufread(Cursor::new(agg(items)));
     Skim::run_with(&options, Some(items))
         .unwrap().query
 }
