@@ -66,75 +66,55 @@ fn query_user_input(prompt: Vec<String>, items: Vec<String>) -> String {
         .unwrap().query
 }
 
+fn search_for_attr(attr: String, depth: usize, root_node: &AttrSet) -> Result<(&AttrSet, String), &str> {
+    let stack: Vec<u64> = root_node.entries().into_vec();
+    let remaining_items: usize;
+    //for entry_wrapped in set.entries() {
+        //let entry = entry_wrapped.value().unwrap();
+
+    //}
+
+    Err("unimplemented")
+}
+
+
 fn main() -> Result<(), Box<dyn Error>> {
-    query_user_input(get_prompts(UserAction::AddInput)[0].clone(), vec![]);
+    //query_user_input(get_prompts(UserAction::AddInput)[0].clone(), vec![]);
 
     let file = match env::args().skip(1).next() {
         Some(file) => file,
         None => {
             eprintln!("Usage: list-fns <file>");
-            return Ok(());
+            Ok(())
         }
     };
     let content = fs::read_to_string(&file)?;
     let ast = rnix::parse(&content).as_result()?;
+    // how to get it back
+    //println!("{}", ast.node());
     let set = ast.root().inner().and_then(AttrSet::cast).ok_or("root isn't a set")?;
+    println!("set is: {:?}", set);
 
-    for entry in set.entries() {
-        if let Some(lambda) = entry.value().and_then(Lambda::cast) {
-            if let Some(attr) = entry.key() {
-                let ident = attr.path().last().and_then(Ident::cast);
-                let s = ident.as_ref().map_or("error", Ident::as_str);
-                println!("Function name: {}", s);
-                if let Some(comment) = find_comment(attr.node().clone()) {
-                    println!("-> Doc: {}", comment);
-                }
+    for entry_wrapped in set.entries() {
+        let entry = entry_wrapped.value().unwrap();
+        println!("entry key is: {:?}",  entry_wrapped.key().unwrap().path().next().and_then(Ident::cast).unwrap().as_str());
 
-                let mut value = Some(lambda);
-                while let Some(lambda) = value {
-                    let ident = lambda.arg().and_then(Ident::cast);
-                    let s = ident.as_ref().map_or("error", Ident::as_str);
-                    println!("-> Arg: {}", s);
-                    if let Some(comment) = lambda.arg().and_then(find_comment) {
-                        println!("--> Doc: {}", comment);
-                    }
-                    value = lambda.body().and_then(Lambda::cast);
-                }
-                println!();
+        match entry.kind() {
+            NODE_ATTR_SET => {
+                //println!("top attr is {:?}",  AttrSet::cast(entry).unwrap().key());
+                for input_kvs in AttrSet::cast(entry).unwrap().entries(){
+                    // TODO do fold and separate into method
+                    input_kvs.key().unwrap().path().for_each(|ele| {println!("key value is {:?}", Ident::cast(ele).unwrap().as_str())});
+                    // morally speaking, should do this recursively, probably
+                    println!("attr value is {:?}", input_kvs.value().and_then(Str::cast).unwrap().parts());
+                };
+            },
+            _ => {
+                println!("kind is {:?}", entry.kind());
+                println!("entry is {:?}", entry.text());
             }
-        }
+        };
     }
 
     Ok(())
 }
-
-fn find_comment(node: SyntaxNode) -> Option<String> {
-    let mut node = NodeOrToken::Node(node);
-    let mut comments = Vec::new();
-    loop {
-        loop {
-            if let Some(new) = node.prev_sibling_or_token() {
-                node = new;
-                break;
-            } else {
-                node = NodeOrToken::Node(node.parent()?);
-            }
-        }
-
-        match node.kind() {
-            TOKEN_COMMENT => match &node {
-                NodeOrToken::Token(token) => comments.push(SmolStr::new(token.text())),
-                NodeOrToken::Node(_) => unreachable!(),
-            },
-            t if t.is_trivia() => (),
-            _ => break,
-        }
-    }
-    let doc = comments
-        .iter()
-        .map(|it| it.trim_start_matches('#').trim())
-        .collect::<Vec<_>>()
-        .join("\n        ");
-    return Some(doc).filter(|it| !it.is_empty());
-}
-
