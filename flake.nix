@@ -2,9 +2,10 @@
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-20.09";
     utils.url = "github:numtide/flake-utils";
-    naersk.url = "github:nmattia/naersk";
     rust-overlay.url = "github:oxalica/rust-overlay";
+    naersk.url = "github:nmattia/naersk";
   };
+
 
   outputs = { self, nixpkgs, utils, rust-overlay, naersk }:
   utils.lib.eachDefaultSystem (system:
@@ -21,6 +22,7 @@
   naersk-lib = naersk.lib."${system}".override {
     rustc = pkgs.rustc;
     cargo = pkgs.cargo;
+    rustfmt = pkgs.rustfmt;
   };
   in rec {
     packages.flake-generator = naersk-lib.buildPackage {
@@ -36,7 +38,7 @@
     defaultApp = apps.flake-generator;
 
     devShell = pkgs.mkShell {
-      nativeBuildInputs = with pkgs; [ rustc cargo ];
+      nativeBuildInputs = with pkgs; [ rustc cargo rustfmt];
     };
   });
 }

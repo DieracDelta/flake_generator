@@ -374,6 +374,7 @@ name = "flake_generator"
 version = "0.1.0"
 dependencies = [
  "rnix",
+ "rowan",
  "skim",
  "smol_str",
 ]

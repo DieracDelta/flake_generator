@@ -4,14 +4,14 @@ extern crate rowan;
 extern crate skim;
 use skim::prelude::*;
 use std::io::Cursor;
-use std::{env, error::Error, fs};
+use std::{error::Error, fs};
 
-use rnix::{types::*, NixLanguage, NodeOrToken, StrPart, SyntaxKind::*, SyntaxNode};
-use smol_str::SmolStr;
+use rnix::{types::*, NixLanguage, StrPart, SyntaxKind::*};
 
 #[derive(Eq, PartialEq, Debug, Copy, Clone)]
 enum UserAction {
     Intro,
+    IntroParsed,
     Exit,
     ModifyExisting,
     CreateNew,
@@ -34,6 +34,7 @@ enum Lang {
 
 fn get_prompts(action: UserAction) -> Vec<String> {
     match action {
+        UserAction::IntroParsed => vec!["What would you like to do?".to_string()],
         UserAction::AddDep => vec![
             "Add a dependency to your flake.".to_string(),
             "Please select an package from nixpkgs.".to_string(),
@@ -42,36 +43,63 @@ fn get_prompts(action: UserAction) -> Vec<String> {
             "Remove a dependency from your flake. ".to_string(),
             "Please select a input to remove.".to_string(),
         ],
-        UserAction::AddInput =>
-            vec![
-                "Add an input to your flake.".to_string(),
-                "Please input a flake url and indicate if it's a flake".to_string(),
-            ],
-        UserAction::IsInputFlake => vec!["Is the input a flake?".to_string()],
-        UserAction::RemoveInput => vec![
-            "Remove an input from your flake.".to_string(),
-            "Please select an input to remove.".to_string(),
+        UserAction::AddInput => vec![
+            "Add an input to your flake.".to_string(),
+            "Please input a flake url and indicate if it's a flake".to_string(),
         ],
+        UserAction::IsInputFlake => vec!["Is the input a flake?".to_string()],
+        UserAction::RemoveInput => vec!["Please select an input to remove.".to_string()],
         UserAction::GenLib => unimplemented!(),
         UserAction::GenBin(_) => unimplemented!(),
-        UserAction::ModifyExisting => unimplemented!(),
+        UserAction::ModifyExisting => vec!["Choose the flake.".to_string()],
         UserAction::CreateNew => unimplemented!(),
         UserAction::Intro => vec![
-            "Welcome. Would you like to create a new flake or modify an existing flake?".to_string(),
+            "Welcome. Would you like to create a new flake or modify an existing flake?"
+                .to_string(),
         ],
-        _ => unimplemented!()
+        _ => unimplemented!(),
     }
 }
 
-fn get_prompt_items(action: UserAction, root: Option<&rowan::api::SyntaxNode<NixLanguage>>) -> Vec<String> {
+fn get_prompt_items(
+    action: UserAction,
+    root: Option<&rowan::api::SyntaxNode<NixLanguage>>,
+) -> Vec<String> {
     match action {
         UserAction::Intro => vec!["create".to_string(), "modify".to_string()],
-        _ => unimplemented!()
+        // TODO
+        UserAction::IntroParsed => {
+            vec!["Delete existing input".to_string(), "Add input".to_string()]
+        }
+        UserAction::ModifyExisting => vec![],
+        UserAction::RemoveInput => {
+            let input_attrs =
+                search_for_attr("inputs".to_string(), 1, &(root.unwrap()), None).unwrap();
+            //println!("intput attrs:{} ", input_attrs.len());
+            input_attrs
+                .iter()
+                .fold(Vec::new(), |acc, ele| -> Vec<String> {
+                    match ele.kind() {
+                        // TODO weird edge case
+                        //NODE_STRING => {println!("ele: {}", ele.key().path()); acc},
+                        NODE_ATTR_SET => search_for_attr("url".to_string(), 10, ele, None)
+                            .unwrap()
+                            .iter()
+                            .fold(acc, |mut n_acc: Vec<String>, n_ele| -> Vec<String> {
+                                n_acc.push(get_str_val(&n_ele).unwrap());
+                                n_acc
+                            }),
+                        _ => unimplemented!(),
+                    }
+                })
+        }
+        _ => vec![],
     }
 }
 
 fn query_user_input(prompt: Vec<String>, items: Vec<String>, files: bool) -> String {
     let header_len = prompt.len();
+    let items_len = items.len();
     let agg = |x: Vec<String>| -> String {
         x.into_iter()
             .rev()
@@ -87,6 +115,7 @@ fn query_user_input(prompt: Vec<String>, items: Vec<String>, files: bool) -> Str
         .algorithm(FuzzyAlgorithm::Clangd)
         .prompt(Some("Provide input:"))
         .inline_info(false)
+        .multi(false)
         .build()
         .unwrap();
     let item_reader = SkimItemReader::default();
@@ -95,7 +124,18 @@ fn query_user_input(prompt: Vec<String>, items: Vec<String>, files: bool) -> Str
     } else {
         Some(item_reader.of_bufread(Cursor::new(agg(items))))
     };
-    Skim::run_with(&options, items).unwrap().query
+    let result = Skim::run_with(&options, items).unwrap();
+    if items_len > 0 || files {
+        result
+            .selected_items
+            .iter()
+            .next()
+            .unwrap()
+            .output()
+            .to_string()
+    } else {
+        result.query
+    }
 }
 
 fn get_str_val(node: &rowan::api::SyntaxNode<NixLanguage>) -> Result<String, String> {
@@ -123,6 +163,14 @@ fn search_for_attr(
 ) -> Result<Vec<rowan::api::SyntaxNode<NixLanguage>>, String> {
     // try to get out a attrset.
     // TODO the clone is probably wrong
+    //match root_node.kind() {
+    //_ => unimplemented!(),
+    //NODE_STRING => {
+    //let mut ns = AttrSet::cast((*root_node).clone()).unwrap()
+    //let cur_node_key = cur_node.key().unwrap();
+    //println!("attr value is {:?}", Str::cast(cur_node_value).unwrap().parts());
+    //},
+    //NODE_ATTR_SET => {
     let mut stack = match AttrSet::cast((*root_node).clone()) {
         Some(rn) => rn.entries().collect(),
         None => Vec::new(),
@@ -157,12 +205,12 @@ fn search_for_attr(
             cur_node_attribute.push_str(".");
             cur_node_attribute.push_str(&cur_attr);
             real_depth += 1;
+            //println!("attr: {}", cur_attr);
             if attr == cur_attr {
                 is_match = true;
-                break;
             }
         }
-        println!("cur_node_attribute: {}", cur_node_attribute);
+        //println!("cur_node_attribute: {}", cur_node_attribute);
 
         is_match = (is_match || cur_node_attribute == attr)
             && exact_depth.map_or(true, |x| -> bool { x == real_depth });
@@ -182,6 +230,7 @@ fn search_for_attr(
                     }
                 }
                 NODE_STRING => {
+                    //println!("nothing fail");
                     // do nothing...
                     //println!("attr value is {:?}", Str::cast(cur_node_value).unwrap().parts());
                 }
@@ -190,47 +239,57 @@ fn search_for_attr(
         }
     }
     Ok(result)
+    //}
+    //}
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
     //query_user_input(get_prompts(UserAction::AddInput)[0].clone(), vec![]);
 
-    let file = match env::args().skip(1).next() {
-        Some(file) => file,
-        None => {
-            eprintln!("Usage: list-fns <file>");
-            return Ok(());
-        }
-    };
-    let content = fs::read_to_string(&file)?;
-    let ast = rnix::parse(&content).as_result()?;
-    // how to get it back
-    //println!("{}", ast.node());
-    let root = ast.root().inner().unwrap();
-    let input_attrs = search_for_attr("inputs".to_string(), 1, &root, Some(0)).unwrap();
-    let url_attrs = input_attrs
-        .iter()
-        .fold(Vec::new(), |mut acc, ele| -> Vec<_> {
-            acc.append(&mut search_for_attr("url".to_string(), 10, ele, None).unwrap());
-            acc
-        });
+    let mut root_root;
+    let mut root: Option<&rowan::api::SyntaxNode<NixLanguage>> = None;
     let mut cur_action = UserAction::Intro;
     let mut modify_files = false;
     while cur_action != UserAction::Exit {
         let prompts = get_prompts(cur_action);
-        let prompt_items = get_prompt_items(cur_action, None);
-        let next_action = query_user_input(prompts, prompt_items, modify_files);
+        let prompt_items = get_prompt_items(cur_action, root);
+        let user_selection = query_user_input(prompts, prompt_items, modify_files);
         match cur_action {
             UserAction::Intro => {
-                if next_action == "create".to_string() {
-                    // TODO
-                } else {
+                if user_selection == "create".to_string() {
+                    // TODO prompt for a name
+                } else if user_selection == "modify".to_string() {
+                    modify_files = true;
                     cur_action = UserAction::ModifyExisting
+                } else {
+                    //println!("User selection was {}", user_selection);
+                    unimplemented!();
                 }
-            },
-            _ => unimplemented!()
+            }
+            UserAction::ModifyExisting => {
+                // try to parse
+                //println!("selected file is: {}", user_selection);
+                let content = fs::read_to_string(user_selection)?;
+                let ast = rnix::parse(&content).as_result()?;
+                // if it fails to parse, get the error
+                root_root = ast.root().inner().unwrap();
+                root = Some(&root_root);
+                modify_files = false;
+                cur_action = UserAction::IntroParsed;
+            }
+            UserAction::IntroParsed => {
+                if user_selection == "Delete existing input" {
+                    cur_action = UserAction::RemoveInput;
+                } else if user_selection == "Add input" {
+                    cur_action = UserAction::AddInput;
+                }
+            }
+            UserAction::RemoveInput => {
+                cur_action = UserAction::Exit;
+            }
+            _ => unimplemented!(),
         }
-    };
+    }
 
     Ok(())
 }
