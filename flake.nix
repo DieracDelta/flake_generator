@@ -33,7 +33,7 @@
     defaultPackage = packages.flake-generator;
 
     apps.flake-generator = utils.lib.mkApp {
-      drv = packages.nix-flake-generator;
+      drv = packages.flake-generator;
     };
     defaultApp = apps.flake-generator;
 
