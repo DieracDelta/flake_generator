@@ -5,7 +5,7 @@ However, writing Nix expressions to specify dependencies is subtle
 and requires learning a whole new language. Can we do better?
 
 Turns out *yes*. Demo:
-[![skim demo](https://asciinema.org/a/GkoYll3a9mT7R6264xymdxuP2)](https://asciinema.org/a/GkoYll3a9mT7R6264xymdxuP2)
+[![generator demo](https://asciinema.org/a/GkoYll3a9mT7R6264xymdxuP2)](https://asciinema.org/a/GkoYll3a9mT7R6264xymdxuP2)
 
 
 # GOAL: AVOID WRITING BOILERPLATE CODE #
