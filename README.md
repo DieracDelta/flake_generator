@@ -7,8 +7,7 @@ and requires learning a whole new language. Can we do better?
 Turns out *yes*. Demo:
 
 
-
-[![generator demo](https://asciinema.org/a/GkoYll3a9mT7R6264xymdxuP2)](https://asciinema.org/a/GkoYll3a9mT7R6264xymdxuP2)
+[![asciicast](https://asciinema.org/a/GkoYll3a9mT7R6264xymdxuP2.svg)](https://asciinema.org/a/GkoYll3a9mT7R6264xymdxuP2)
 
 
 
