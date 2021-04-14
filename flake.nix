@@ -10,7 +10,6 @@
 
   inputs.naersk.url = "github:nmattia/naersk";
 
-
   outputs = { self, nixpkgs, utils, rust-overlay, naersk }:
   utils.lib.eachDefaultSystem (system:
   let pkgs = import nixpkgs {

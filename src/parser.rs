@@ -23,7 +23,7 @@ fn search_for_attr_v2(
     max_depth: usize,
     root_node: &rowan::api::SyntaxNode<NixLanguage>,
     exact_depth: Option<usize>,
-) -> Result<Vec<(rowan::api::SyntaxNode<NixLanguage>, String)>, String> {
+) -> Result<Vec<(rowan::api::SyntaxNode<NixLanguage>, String, usize)>, String> {
     // *big* assumption that the root node is an attrset
     let mut stack = match AttrSet::cast((*root_node).clone()) {
         Some(rn) => rn.entries().map(|x| (x, String::new())).collect(),
@@ -50,7 +50,7 @@ fn search_for_attr_v2(
             return Ok(vec![]);
         }
 
-        let mut real_depth = cur_depth - 1;
+        let mut real_depth = cur_depth;
         let mut cur_node_attribute = "".to_string();
         // TODO url.url.url will break this
         let mut is_match = false;
@@ -69,13 +69,13 @@ fn search_for_attr_v2(
         is_match = (is_match || cur_node_attribute == attr)
             && exact_depth.map_or(true, |x| -> bool { x == real_depth });
         if is_match {
-            result.push((cur_node_value, path));
+            result.push((cur_node_value, path, real_depth));
         } else {
             match cur_node_value.kind() {
                 NODE_ATTR_SET => {
                     let cur_node_casted = AttrSet::cast(cur_node_value.clone()).unwrap();
                     if is_match {
-                        result.push((cur_node_value, path));
+                        result.push((cur_node_value, path, real_depth));
                     } else {
                         cur_node_casted.entries().for_each(|entry| {
                             stack.insert(0, (entry, path.clone()));
@@ -95,6 +95,8 @@ fn search_for_attr_v2(
     Ok(result)
 }
 
+// TODO be better about clamping on nixpkgs.*.url.
+// Bug: nixpkgs.hi.hi.url
 pub fn get_prompt_items(
     action: UserAction,
     root: Option<&rowan::api::SyntaxNode<NixLanguage>>,
@@ -110,33 +112,41 @@ pub fn get_prompt_items(
                 search_for_attr_v2("inputs".to_string(), 1, &(root.unwrap()), None).unwrap();
             input_attrs.iter().fold(
                 Vec::new(),
-                |mut acc, (ele, _attribute_path)| -> Vec<String> {
+                |mut acc, (ele, _attribute_path, depth)| -> Vec<String> {
                     match ele.kind() {
-                        // TODO weird edge case
+                        // edge case of entire attribute set at once. E.g. inputs.nixpkgs.url =
                         NODE_STRING => {
-                            let result = Str::cast(ele.clone()).unwrap().parts().iter().fold(
-                                String::new(),
-                                |mut i_acc, i_ele| {
-                                    match i_ele {
-                                        StrPart::Literal(s) => i_acc.push_str(s),
-                                        _ => (),
-                                    };
-                                    i_acc
-                                },
-                            );
-                            acc.push(result);
+                            println!("DEPTH: {}", depth);
+                            if *depth == 3 {
+                                let result = Str::cast(ele.clone()).unwrap().parts().iter().fold(
+                                    String::new(),
+                                    |mut i_acc, i_ele| {
+                                        match i_ele {
+                                            StrPart::Literal(s) => i_acc.push_str(s),
+                                            _ => (),
+                                        };
+                                        i_acc
+                                    },
+                                );
+                                acc.push(result);
+                            }
                             acc
                         }
-                        NODE_ATTR_SET => search_for_attr_v2("url".to_string(), 10, ele, None)
+                        NODE_ATTR_SET => search_for_attr_v2("url".to_string(), 2, ele, None)
                             .unwrap()
                             .iter()
                             .fold(
                                 acc,
-                                |mut n_acc: Vec<String>, (n_ele, _n_path)| -> Vec<String> {
-                                    let mut result = "".to_string();
-                                    //result.push_str(n_path);
-                                    result.push_str(&get_str_val(&n_ele).unwrap());
-                                    n_acc.push(result);
+                                |mut n_acc: Vec<String>,
+                                 (n_ele, _n_path, n_depth)|
+                                 -> Vec<String> {
+                                    println!("DEPTH: {}", depth + n_depth);
+                                    if depth + n_depth == 3 {
+                                        let mut result = "".to_string();
+                                        //result.push_str(n_path);
+                                        result.push_str(&get_str_val(&n_ele).unwrap());
+                                        n_acc.push(result);
+                                    }
                                     n_acc
                                 },
                             ),
