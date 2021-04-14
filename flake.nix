@@ -2,9 +2,13 @@
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-20.09";
     utils.url = "github:numtide/flake-utils";
-    rust-overlay.url = "github:oxalica/rust-overlay";
-    naersk.url = "github:nmattia/naersk";
   };
+
+  inputs.rust-overlay = {
+    url = "github:oxalica/rust-overlay";
+  };
+
+  inputs.naersk.url = "github:nmattia/naersk";
 
 
   outputs = { self, nixpkgs, utils, rust-overlay, naersk }:
