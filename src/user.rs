@@ -1,6 +1,33 @@
 extern crate skim;
 use skim::prelude::*;
 use std::io::Cursor;
+use rowan::SyntaxNode;
+use rnix::NixLanguage;
+
+#[derive(Eq, PartialEq, Debug, Clone)]
+pub struct UserMetadata<'a> {
+    pub root : Option<rowan::api::SyntaxNode<NixLanguage>>,
+    pub inputs : Vec<&'a rowan::api::SyntaxNode<NixLanguage>>,
+    pub filename : Option<String>,
+    pub modify_existing : bool
+}
+
+impl UserMetadata<'_> {
+    pub fn root_ref(&self) -> &rowan::api::SyntaxNode<NixLanguage> {
+        self.root.as_ref().unwrap()
+    }
+}
+
+impl Default for UserMetadata<'_> {
+    fn default() -> Self {
+        UserMetadata {
+            root: None,
+            inputs: Vec::new(),
+            filename: None,
+            modify_existing : false,
+        }
+    }
+}
 
 #[derive(Eq, PartialEq, Debug, Copy, Clone)]
 pub enum UserAction {

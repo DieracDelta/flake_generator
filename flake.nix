@@ -31,7 +31,6 @@
     packages.flake-generator = naersk-lib.buildPackage {
       pname = "flake-generator";
       root = ./.;
-      #buildInputs = with pkgs; [skim];
     };
     defaultPackage = packages.flake-generator;
 
