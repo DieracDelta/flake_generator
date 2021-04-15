@@ -1,6 +1,5 @@
-use crate::user::*;
 use rnix::{types::*, NixLanguage, StrPart, SyntaxKind::*};
-use rowan::{GreenNode, GreenNodeBuilder, SyntaxNode};
+use rowan::{GreenNodeBuilder, SyntaxNode};
 
 fn kill_node(
     node: &rowan::api::SyntaxNode<NixLanguage>,
@@ -13,13 +12,11 @@ fn kill_node(
     let mut new_root = SyntaxNode::<NixLanguage>::new_root(node.replace_with(new_node.finish()));
     loop {
         println!("did one iteration of the inner loop");
-        let maybe_parent = new_root.parent();
-        if maybe_parent.is_some() {
-            new_root = maybe_parent.unwrap();
+        if let Some(parent) = new_root.parent() {
+            new_root = parent;
         } else {
             break;
         }
-
     }
     Ok(new_root)
 }
@@ -77,7 +74,7 @@ fn search_for_attr(
         for p in cur_node_key.path() {
             let tmp = Ident::cast(p).unwrap();
             let cur_attr = tmp.as_str();
-            cur_node_attribute.push_str(".");
+            cur_node_attribute.push('.');
             cur_node_attribute.push_str(&cur_attr);
             real_depth += 1;
             is_match = attr == cur_attr || is_match;
@@ -113,8 +110,7 @@ fn search_for_attr(
 }
 
 pub fn get_inputs(root: &rowan::api::SyntaxNode<NixLanguage>) -> Vec<String> {
-    let input_attrs =
-        search_for_attr("inputs".to_string(), 1, root, None).unwrap();
+    let input_attrs = search_for_attr("inputs".to_string(), 1, root, None).unwrap();
     input_attrs.iter().fold(
         Vec::new(),
         |mut acc, (ele, _attribute_path, depth)| -> Vec<String> {
@@ -126,10 +122,9 @@ pub fn get_inputs(root: &rowan::api::SyntaxNode<NixLanguage>) -> Vec<String> {
                         let result = Str::cast(ele.clone()).unwrap().parts().iter().fold(
                             String::new(),
                             |mut i_acc, i_ele| {
-                                match i_ele {
-                                    StrPart::Literal(s) => i_acc.push_str(s),
-                                    _ => (),
-                                };
+                                if let StrPart::Literal(s) = i_ele {
+                                    i_acc.push_str(s)
+                                }
                                 i_acc
                             },
                         );
@@ -142,9 +137,7 @@ pub fn get_inputs(root: &rowan::api::SyntaxNode<NixLanguage>) -> Vec<String> {
                     .iter()
                     .fold(
                         acc,
-                        |mut n_acc: Vec<String>,
-                        (n_ele, _n_path, n_depth)|
-                        -> Vec<String> {
+                        |mut n_acc: Vec<String>, (n_ele, _n_path, n_depth)| -> Vec<String> {
                             if depth + n_depth == expected_depth {
                                 let mut result = "".to_string();
                                 result.push_str(&get_str_val(&n_ele).unwrap());
@@ -156,22 +149,5 @@ pub fn get_inputs(root: &rowan::api::SyntaxNode<NixLanguage>) -> Vec<String> {
                 _ => acc,
             }
         },
-        )
-}
-
-pub fn get_prompt_items(
-    action: UserAction,
-    md: &UserMetadata,
-) -> Vec<String> {
-    match action {
-        UserAction::Intro => vec!["create".to_string(), "modify".to_string()],
-        UserAction::IntroParsed => {
-            vec!["Delete existing input".to_string(), "Add input".to_string()]
-        }
-        UserAction::ModifyExisting => vec![],
-        UserAction::RemoveInput => {
-            get_inputs(md.root_ref())
-        }
-        _ => vec![],
-    }
+    )
 }

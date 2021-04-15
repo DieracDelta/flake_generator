@@ -26,6 +26,7 @@
     rustc = pkgs.rustc;
     cargo = pkgs.cargo;
     rustfmt = pkgs.rustfmt;
+    clippy = pkgs.clippy;
   };
   in rec {
     packages.flake-generator = naersk-lib.buildPackage {
@@ -40,7 +41,7 @@
     defaultApp = apps.flake-generator;
 
     devShell = pkgs.mkShell {
-      nativeBuildInputs = with pkgs; [ rustc cargo rustfmt];
+      nativeBuildInputs = with pkgs; [ rustc cargo rustfmt clippy];
     };
   });
 }

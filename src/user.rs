@@ -1,15 +1,20 @@
 extern crate skim;
+use crate::parser::get_inputs;
+use rnix::NixLanguage;
 use skim::prelude::*;
 use std::io::Cursor;
-use rowan::SyntaxNode;
-use rnix::NixLanguage;
+
+//#[derive(Eq, PartialEq, Debug, Clone)]
+//pub struct UserResult {
+//user_selection: String,
+//}
 
 #[derive(Eq, PartialEq, Debug, Clone)]
 pub struct UserMetadata<'a> {
-    pub root : Option<rowan::api::SyntaxNode<NixLanguage>>,
-    pub inputs : Vec<&'a rowan::api::SyntaxNode<NixLanguage>>,
-    pub filename : Option<String>,
-    pub modify_existing : bool
+    pub root: Option<rowan::api::SyntaxNode<NixLanguage>>,
+    pub inputs: Vec<&'a rowan::api::SyntaxNode<NixLanguage>>,
+    pub filename: Option<String>,
+    pub modify_existing: bool,
 }
 
 impl UserMetadata<'_> {
@@ -24,7 +29,7 @@ impl Default for UserMetadata<'_> {
             root: None,
             inputs: Vec::new(),
             filename: None,
-            modify_existing : false,
+            modify_existing: false,
         }
     }
 }
@@ -43,6 +48,12 @@ pub enum UserAction {
     GenLib,
     IsInputFlake,
     GenBin(Lang),
+}
+
+pub fn get_user_result(a: UserAction, md: &UserMetadata) -> String {
+    let prompts = get_prompts(a);
+    let prompt_items = get_prompt_items(a, md);
+    query_user_input(prompts, prompt_items, a == UserAction::ModifyExisting)
 }
 
 #[derive(Eq, PartialEq, Debug, Copy, Clone)]
@@ -82,13 +93,7 @@ pub fn query_user_input(prompt: Vec<String>, items: Vec<String>, files: bool) ->
     };
     let result = Skim::run_with(&options, items).unwrap();
     if items_len > 0 || files {
-        result
-            .selected_items
-            .iter()
-            .next()
-            .unwrap()
-            .output()
-            .to_string()
+        result.selected_items.get(0).unwrap().output().to_string()
     } else {
         result.query
     }
@@ -120,5 +125,17 @@ pub fn get_prompts(action: UserAction) -> Vec<String> {
                 .to_string(),
         ],
         _ => unimplemented!(),
+    }
+}
+
+pub fn get_prompt_items(action: UserAction, md: &UserMetadata) -> Vec<String> {
+    match action {
+        UserAction::Intro => vec!["create".to_string(), "modify".to_string()],
+        UserAction::IntroParsed => {
+            vec!["Delete existing input".to_string(), "Add input".to_string()]
+        }
+        UserAction::ModifyExisting => vec![],
+        UserAction::RemoveInput => get_inputs(md.root_ref()),
+        _ => vec![],
     }
 }

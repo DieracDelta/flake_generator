@@ -1,26 +1,22 @@
 #![allow(dead_code)]
 extern crate rowan;
-#[warn(unused_variables)]
 use std::{error::Error, fs};
 mod user;
+use rnix::types::*;
 use user::*;
-use rnix::{types::*, NixLanguage};
 mod parser;
-use parser::*;
 
 fn main() -> Result<(), Box<dyn Error>> {
     let mut user_data = UserMetadata::default();
-    let mut cur_action : UserAction = UserAction::Intro;
+    let mut cur_action: UserAction = UserAction::Intro;
     while cur_action != UserAction::Exit {
-        let prompts : Vec<String> = get_prompts(cur_action);
-        let prompt_items : Vec<String> = get_prompt_items(cur_action, &user_data);
-        let user_selection : String = query_user_input(prompts, prompt_items, user_data.modify_existing);
+        let user_selection = get_user_result(cur_action, &user_data);
         match cur_action {
             UserAction::Intro => {
-                if user_selection == "create".to_string() {
+                if user_selection == *"create" {
                     // TODO prompt for a name
                     unimplemented!();
-                } else if user_selection == "modify".to_string() {
+                } else if user_selection == *"modify" {
                     user_data.modify_existing = true;
                     cur_action = UserAction::ModifyExisting
                 } else {
