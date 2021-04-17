@@ -5,12 +5,13 @@ mod user;
 use rnix::types::*;
 use user::*;
 mod parser;
+use parser::kill_node;
 
 fn main() -> Result<(), Box<dyn Error>> {
     let mut user_data = UserMetadata::default();
     let mut cur_action: UserAction = UserAction::Intro;
     while cur_action != UserAction::Exit {
-        let user_selection = get_user_result(cur_action, &user_data);
+        let user_selection = get_user_result(cur_action, &mut user_data);
         match cur_action {
             UserAction::Intro => {
                 if user_selection == *"create" {
@@ -37,9 +38,13 @@ fn main() -> Result<(), Box<dyn Error>> {
                 }
             }
             UserAction::RemoveInput => {
+                let dead_node = &user_data.inputs.clone().unwrap().get(&user_selection).unwrap().parent().unwrap();
+                let new_root = kill_node(dead_node)?;
+                user_data.new_root(new_root);
+                println!("{}", user_data.root.as_ref().unwrap().to_string());
                 // TODO better error handling
                 //root.unwrap():
-                cur_action = UserAction::Exit;
+                cur_action = UserAction::IntroParsed;
             }
             _ => unimplemented!(),
         }

@@ -3,6 +3,8 @@ use crate::parser::get_inputs;
 use rnix::NixLanguage;
 use skim::prelude::*;
 use std::io::Cursor;
+use rowan::api::SyntaxNode;
+use std::collections::HashMap;
 
 //#[derive(Eq, PartialEq, Debug, Clone)]
 //pub struct UserResult {
@@ -10,24 +12,40 @@ use std::io::Cursor;
 //}
 
 #[derive(Eq, PartialEq, Debug, Clone)]
-pub struct UserMetadata<'a> {
-    pub root: Option<rowan::api::SyntaxNode<NixLanguage>>,
-    pub inputs: Vec<&'a rowan::api::SyntaxNode<NixLanguage>>,
+pub struct UserMetadata {
+    pub root: Option<SyntaxNode<NixLanguage>>,
+    pub inputs: Option<HashMap<String, SyntaxNode<NixLanguage>>>,
     pub filename: Option<String>,
     pub modify_existing: bool,
 }
 
-impl UserMetadata<'_> {
-    pub fn root_ref(&self) -> &rowan::api::SyntaxNode<NixLanguage> {
+impl UserMetadata {
+    pub fn root_ref(&self) -> &SyntaxNode<NixLanguage> {
         self.root.as_ref().unwrap()
+    }
+
+    pub fn new_root(&mut self, root: SyntaxNode<NixLanguage>) {
+        self.inputs = None;
+        self.root = Some(root);
+    }
+
+    pub fn get_inputs(&mut self) -> HashMap<String, SyntaxNode<NixLanguage>> {
+        if let Some(inputs) = &mut self.inputs {
+            inputs.clone()
+        } else {
+            let updated_inputs = get_inputs(self.root_ref());
+            self.inputs = Some(updated_inputs.clone());
+            updated_inputs
+        }
+
     }
 }
 
-impl Default for UserMetadata<'_> {
+impl Default for UserMetadata{
     fn default() -> Self {
         UserMetadata {
             root: None,
-            inputs: Vec::new(),
+            inputs: None,
             filename: None,
             modify_existing: false,
         }
@@ -50,7 +68,7 @@ pub enum UserAction {
     GenBin(Lang),
 }
 
-pub fn get_user_result(a: UserAction, md: &UserMetadata) -> String {
+pub fn get_user_result(a: UserAction, md: &mut UserMetadata) -> String {
     let prompts = get_prompts(a);
     let prompt_items = get_prompt_items(a, md);
     query_user_input(prompts, prompt_items, a == UserAction::ModifyExisting)
@@ -128,17 +146,21 @@ pub fn get_prompts(action: UserAction) -> Vec<String> {
     }
 }
 
-pub fn get_prompt_items(action: UserAction, md: &UserMetadata) -> Vec<String> {
+pub fn get_prompt_items(action: UserAction, md: &mut UserMetadata) -> Vec<String> {
     match action {
         UserAction::Intro => vec!["create".to_string(), "modify".to_string()],
         UserAction::IntroParsed => {
             vec!["Delete existing input".to_string(), "Add input".to_string()]
         }
         UserAction::ModifyExisting => vec![],
-        UserAction::RemoveInput => get_inputs(md.root_ref())
-            .keys()
-            .map(|x| x.clone())
-            .collect(),
+        UserAction::RemoveInput =>
+            //check cache
+            if let Some(inputs) = &mut md.inputs {
+                inputs.keys().map(|x| x.clone()).collect()
+            } else {
+                md.get_inputs().keys().map(|x| x.clone()).collect()
+            }
         _ => vec![],
     }
 }
+

@@ -2,13 +2,15 @@ use rnix::{types::*, NixLanguage, StrPart, SyntaxKind::*};
 use rowan::{api::SyntaxNode, GreenNodeBuilder};
 use std::collections::HashMap;
 
-fn kill_node(node: &SyntaxNode<NixLanguage>) -> Result<SyntaxNode<NixLanguage>, String> {
+pub fn kill_node(node: &SyntaxNode<NixLanguage>) -> Result<SyntaxNode<NixLanguage>, String> {
     // TODO replace 2 with TOKEN_WHITESPACE
     //let newnode = GreenNode::new(rowan::SyntaxKind(2), vec![].iter());
     let mut new_node = GreenNodeBuilder::new();
-    new_node.start_node(rowan::SyntaxKind(2));
+    new_node.start_node(rowan::SyntaxKind(node.kind() as u16));
     new_node.finish_node();
-    let mut new_root = SyntaxNode::<NixLanguage>::new_root(node.replace_with(new_node.finish()));
+    let a = new_node.finish();
+    let b = node.replace_with(a);
+    let mut new_root = SyntaxNode::<NixLanguage>::new_root(b);
     loop {
         println!("did one iteration of the inner loop");
         if let Some(parent) = new_root.parent() {
@@ -108,7 +110,7 @@ fn search_for_attr(
     Ok(result)
 }
 
-pub fn get_inputs(root: & SyntaxNode<NixLanguage>) -> HashMap<String, SyntaxNode<NixLanguage>> {
+pub fn get_inputs(root: &SyntaxNode<NixLanguage>) -> HashMap<String, SyntaxNode<NixLanguage>> {
     let input_attrs = search_for_attr("inputs".to_string(), 1, root, None).unwrap();
     input_attrs.iter().fold(
         HashMap::new(),
