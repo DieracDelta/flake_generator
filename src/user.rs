@@ -135,7 +135,10 @@ pub fn get_prompt_items(action: UserAction, md: &UserMetadata) -> Vec<String> {
             vec!["Delete existing input".to_string(), "Add input".to_string()]
         }
         UserAction::ModifyExisting => vec![],
-        UserAction::RemoveInput => get_inputs(md.root_ref()),
+        UserAction::RemoveInput => get_inputs(md.root_ref())
+            .keys()
+            .map(|x| x.clone())
+            .collect(),
         _ => vec![],
     }
 }

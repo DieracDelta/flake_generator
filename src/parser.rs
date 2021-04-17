@@ -1,9 +1,8 @@
 use rnix::{types::*, NixLanguage, StrPart, SyntaxKind::*};
-use rowan::{GreenNodeBuilder, SyntaxNode};
+use rowan::{api::SyntaxNode, GreenNodeBuilder};
+use std::collections::HashMap;
 
-fn kill_node(
-    node: &rowan::api::SyntaxNode<NixLanguage>,
-) -> Result<rowan::api::SyntaxNode<NixLanguage>, String> {
+fn kill_node(node: &SyntaxNode<NixLanguage>) -> Result<SyntaxNode<NixLanguage>, String> {
     // TODO replace 2 with TOKEN_WHITESPACE
     //let newnode = GreenNode::new(rowan::SyntaxKind(2), vec![].iter());
     let mut new_node = GreenNodeBuilder::new();
@@ -21,7 +20,7 @@ fn kill_node(
     Ok(new_root)
 }
 
-fn get_str_val(node: &rowan::api::SyntaxNode<NixLanguage>) -> Result<String, String> {
+fn get_str_val(node: &SyntaxNode<NixLanguage>) -> Result<String, String> {
     Ok(Str::cast((*node).clone()).unwrap().parts().iter().fold(
         String::new(),
         |mut acc, ele| -> String {
@@ -39,9 +38,9 @@ fn get_str_val(node: &rowan::api::SyntaxNode<NixLanguage>) -> Result<String, Str
 fn search_for_attr(
     attr: String,
     max_depth: usize,
-    root_node: &rowan::api::SyntaxNode<NixLanguage>,
+    root_node: &SyntaxNode<NixLanguage>,
     exact_depth: Option<usize>,
-) -> Result<Vec<(rowan::api::SyntaxNode<NixLanguage>, String, usize)>, String> {
+) -> Result<Vec<(SyntaxNode<NixLanguage>, String, usize)>, String> {
     // assuming that the root node is an attrset
     let mut stack = match AttrSet::cast((*root_node).clone()) {
         Some(rn) => rn.entries().map(|x| (x, String::new())).collect(),
@@ -109,11 +108,11 @@ fn search_for_attr(
     Ok(result)
 }
 
-pub fn get_inputs(root: &rowan::api::SyntaxNode<NixLanguage>) -> Vec<String> {
+pub fn get_inputs(root: & SyntaxNode<NixLanguage>) -> HashMap<String, SyntaxNode<NixLanguage>> {
     let input_attrs = search_for_attr("inputs".to_string(), 1, root, None).unwrap();
     input_attrs.iter().fold(
-        Vec::new(),
-        |mut acc, (ele, _attribute_path, depth)| -> Vec<String> {
+        HashMap::new(),
+        |mut acc, (ele, _attribute_path, depth)| -> HashMap<String, SyntaxNode<NixLanguage>> {
             let expected_depth = 3;
             match ele.kind() {
                 // edge case of entire attribute set at once. E.g. inputs.nixpkgs.url =
@@ -128,7 +127,7 @@ pub fn get_inputs(root: &rowan::api::SyntaxNode<NixLanguage>) -> Vec<String> {
                                 i_acc
                             },
                         );
-                        acc.push(result);
+                        acc.insert(result, ele.clone());
                     }
                     acc
                 }
@@ -137,11 +136,11 @@ pub fn get_inputs(root: &rowan::api::SyntaxNode<NixLanguage>) -> Vec<String> {
                     .iter()
                     .fold(
                         acc,
-                        |mut n_acc: Vec<String>, (n_ele, _n_path, n_depth)| -> Vec<String> {
+                        |mut n_acc: HashMap<String, SyntaxNode<NixLanguage>>,
+                         (n_ele, _n_node, n_depth)|
+                         -> HashMap<String, SyntaxNode<NixLanguage>> {
                             if depth + n_depth == expected_depth {
-                                let mut result = "".to_string();
-                                result.push_str(&get_str_val(&n_ele).unwrap());
-                                n_acc.push(result);
+                                n_acc.insert(get_str_val(n_ele).unwrap(), n_ele.clone());
                             }
                             n_acc
                         },
