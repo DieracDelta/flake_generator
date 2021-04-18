@@ -143,7 +143,7 @@ pub fn query_user_input(prompt: Vec<String>, items: Vec<String>, files: bool) ->
     let items_len = items.len();
 
     let agg = |x: Vec<String>| -> String {
-        x.into_iter().rev().fold("".to_string(), |mut acc, ele| {
+        x.into_iter().rev().fold(String::new(), |mut acc, ele| {
             acc.push('\n');
             acc.push_str(&ele);
             acc
