@@ -163,15 +163,15 @@ fn search_for_attr(
 }
 
 pub fn get_inputs(root: &NixNode) -> HashMap<String, NixNode> {
-    let input_attrs = search_for_attr("inputs".to_string(), 1, root, None).unwrap();
-    input_attrs
-        .iter()
-        .fold(HashMap::new(), |mut acc, (ele, _attribute_path, depth)| {
+    search_for_attr("inputs".to_string(), 1, root, None)
+        .unwrap()
+        .into_iter()
+        .flat_map(|(ele, _attribute_path, depth)| {
             const EXPECTED_DEPTH: usize = 3;
             match ele.kind() {
                 // edge case of entire attribute set at once. E.g. inputs.nixpkgs.url =
                 NODE_STRING => {
-                    if *depth == EXPECTED_DEPTH {
+                    if depth == EXPECTED_DEPTH {
                         let result = Str::cast(ele.clone()).unwrap().parts().iter().fold(
                             String::new(),
                             |mut i_acc, i_ele| {
@@ -181,23 +181,24 @@ pub fn get_inputs(root: &NixNode) -> HashMap<String, NixNode> {
                                 i_acc
                             },
                         );
-                        acc.insert(result, ele.clone());
+                        vec![(result, ele)]
+                    } else {
+                        vec![]
                     }
-                    acc
                 }
-                NODE_ATTR_SET => search_for_attr("url".to_string(), 2, ele, None)
+                NODE_ATTR_SET => search_for_attr("url".to_string(), 2, &ele, None)
                     .unwrap()
-                    .iter()
-                    .fold(
-                        acc,
-                        |mut n_acc: HashMap<String, NixNode>, (n_ele, _n_node, n_depth)| {
-                            if depth + n_depth == EXPECTED_DEPTH {
-                                n_acc.insert(get_str_val(n_ele).unwrap(), n_ele.clone());
-                            }
-                            n_acc
-                        },
-                    ),
-                _ => acc,
+                    .into_iter()
+                    .filter_map(|(n_ele, _n_node, n_depth)| {
+                        if depth + n_depth == EXPECTED_DEPTH {
+                            Some((get_str_val(&n_ele).unwrap(), n_ele))
+                        } else {
+                            None
+                        }
+                    })
+                    .collect(),
+                _ => vec![],
             }
         })
+        .collect()
 }

@@ -27,14 +27,14 @@ impl UserMetadata {
         self.root = Some(root);
     }
 
+    fn ensure_inputs(&mut self) -> &mut HashMap<String, NixNode> {
+        let root_ref = self.root.as_ref();
+        self.inputs
+            .get_or_insert_with(|| parser::get_inputs(root_ref.unwrap()))
+    }
+
     pub fn get_inputs(&mut self) -> HashMap<String, NixNode> {
-        if let Some(inputs) = &mut self.inputs {
-            inputs.clone()
-        } else {
-            let updated_inputs = parser::get_inputs(self.root_ref());
-            self.inputs = Some(updated_inputs.clone());
-            updated_inputs
-        }
+        self.ensure_inputs().clone()
     }
 
     pub fn get_prompt_items(&mut self, action: &UserAction) -> Vec<UserPrompt> {
@@ -47,24 +47,12 @@ impl UserMetadata {
             ],
             UserAction::ModifyExisting => vec![],
             UserAction::RemoveInput => {
-                //check cache
-                let mut prompts: Vec<UserPrompt> = self
-                    .inputs
-                    .as_ref()
-                    .map(|inputs| {
-                        inputs
-                            .keys()
-                            .map(|s| UserPrompt::from_str(s).unwrap())
-                            .collect()
-                    })
-                    .unwrap_or_else(|| {
-                        self.get_inputs()
-                            .keys()
-                            .map(|s| UserPrompt::from_str(s).unwrap())
-                            .collect()
-                    });
-                prompts.push(UserPrompt::Back);
-                prompts
+                // check cache
+                self.ensure_inputs()
+                    .keys()
+                    .map(|s| UserPrompt::from_str(s).unwrap())
+                    .chain(std::iter::once(UserPrompt::Back))
+                    .collect()
             }
             UserAction::Error(_) => vec![UserPrompt::Back, UserPrompt::StartOver, UserPrompt::Exit],
             x => unimplemented!("prompt not implemented for: {:?}", x),
@@ -155,7 +143,7 @@ pub fn query_user_input(prompt: Vec<String>, items: Vec<String>, files: bool) ->
     let items_len = items.len();
 
     let agg = |x: Vec<String>| -> String {
-        x.into_iter().rev().fold("".to_string(), |mut acc, ele| {
+        x.into_iter().rev().fold(String::new(), |mut acc, ele| {
             acc.push('\n');
             acc.push_str(&ele);
             acc
