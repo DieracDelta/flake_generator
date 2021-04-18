@@ -12,9 +12,11 @@ struct ActionStack {
 }
 
 impl ActionStack {
+    const START_ACTION: UserAction = UserAction::Intro;
+
     fn new() -> Self {
         Self {
-            inner: vec![UserAction::Intro],
+            inner: vec![Self::START_ACTION],
         }
     }
 
@@ -26,24 +28,26 @@ impl ActionStack {
         if self.inner.len() > 1 {
             self.inner.pop().unwrap()
         } else {
-            *self.inner.last().unwrap()
+            Self::START_ACTION
         }
     }
 
+    #[allow(dead_code)]
     fn clear(&mut self) {
         self.inner.clear();
-        self.inner.push(UserAction::Intro);
+        self.inner.push(Self::START_ACTION);
     }
 
-    fn current(&self) -> UserAction {
-        *self.inner.last().unwrap()
+    fn current(&self) -> &UserAction {
+        self.inner.last().unwrap()
     }
 }
 
 fn main() {
     let mut user_data = UserMetadata::default();
     let mut action_stack = ActionStack::new();
-    while action_stack.current() != UserAction::Exit {
+
+    loop {
         let cur_action = action_stack.current();
         let user_selection = UserPrompt::from_str(&user_data.get_user_result(cur_action)).unwrap();
         match user_selection {
@@ -51,9 +55,9 @@ fn main() {
                 action_stack.pop();
             }
             UserPrompt::Exit => break,
+            UserPrompt::StartOver => action_stack.clear(),
             UserPrompt::Create => todo!("implement create; prompt for a name"),
             UserPrompt::Modify => {
-                user_data.modify_existing = true;
                 action_stack.push(UserAction::ModifyExisting);
             }
             UserPrompt::DeleteInput => action_stack.push(UserAction::RemoveInput),
@@ -65,28 +69,31 @@ fn main() {
                             Ok(content) => content,
                             Err(err) => {
                                 const IS_DIRECTORY_ERRNO: i32 = 21;
-                                if let Some(IS_DIRECTORY_ERRNO) = err.raw_os_error() {
-                                    // TODO show user the error here
-                                    eprintln!("selected path {} is a directory", other);
-                                    action_stack.clear();
-                                    user_data.modify_existing = false;
-                                    continue;
+                                let err_msg = if let Some(IS_DIRECTORY_ERRNO) = err.raw_os_error() {
+                                    format!("selected path {} is a directory", other)
+                                } else if err.kind() == std::io::ErrorKind::InvalidData {
+                                    format!(
+                                        "selected path {} does not contain valid UTF-8 data",
+                                        other
+                                    )
                                 } else {
-                                    panic!("something is very wrong");
-                                }
+                                    format!("something is very wrong: {}", err)
+                                };
+                                action_stack.push(UserAction::Error(err_msg));
+                                continue;
                             }
                         };
                         let ast = match rnix::parse(&content).as_result() {
                             Ok(parsed) => parsed,
                             Err(err) => {
-                                // TODO show user the error here
-                                eprintln!("could not parse {} as a nix file: {}", other, err);
-                                action_stack.clear();
+                                action_stack.push(UserAction::Error(format!(
+                                    "could not parse {} as a nix file: {}",
+                                    other, err
+                                )));
                                 continue;
                             }
                         };
                         user_data.root = Some(ast.root().inner().unwrap());
-                        user_data.modify_existing = false;
                         action_stack.push(UserAction::IntroParsed);
                     }
                     UserAction::RemoveInput => {
@@ -101,9 +108,10 @@ fn main() {
                         let new_root = match kill_node_attribute(dead_node) {
                             Ok(node) => node,
                             Err(err) => {
-                                // TODO show user the error here
-                                eprintln!("could not remove input: {}", err);
-                                action_stack.clear();
+                                action_stack.push(UserAction::Error(format!(
+                                    "could not remove input: {}",
+                                    err
+                                )));
                                 continue;
                             }
                         };
