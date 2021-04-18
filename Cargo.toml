@@ -10,3 +10,7 @@ smol_str = "0.1.17"
 skim = "0.9.4"
 rnix = "0.9.0"
 rowan = "0.12.6"
+
+[package.metadata.nix]
+app = true
+build = true
