@@ -32,3 +32,8 @@ jobs:
         nix flake check
         nix develop -c cargo test --verbose
         nix develop -c cargo test --verbose --release
+    - uses: cachix/cachix-action@v10
+      with:
+        name: jrestivo
+        authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+    - run: nix build .#flake_generator -L
