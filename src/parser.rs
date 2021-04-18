@@ -1,8 +1,11 @@
-use rnix::{types::*, NixLanguage, StrPart, SyntaxKind::*};
-use rowan::{api::SyntaxNode, GreenNodeBuilder};
 use std::collections::HashMap;
 
-pub fn kill_node(node: &SyntaxNode<NixLanguage>) -> Result<SyntaxNode<NixLanguage>, String> {
+use rnix::{types::*, NixLanguage, StrPart, SyntaxKind::*};
+use rowan::{api::SyntaxNode, GreenNodeBuilder};
+
+pub(crate) type NixNode = SyntaxNode<NixLanguage>;
+
+pub fn kill_node(node: &NixNode) -> Result<NixNode, String> {
     // TODO replace 2 with TOKEN_WHITESPACE
     //let newnode = GreenNode::new(rowan::SyntaxKind(2), vec![].iter());
     let mut new_node = GreenNodeBuilder::new();
@@ -10,9 +13,9 @@ pub fn kill_node(node: &SyntaxNode<NixLanguage>) -> Result<SyntaxNode<NixLanguag
     new_node.finish_node();
     let a = new_node.finish();
     let b = node.replace_with(a);
-    let mut new_root = SyntaxNode::<NixLanguage>::new_root(b);
+    let mut new_root = NixNode::new_root(b);
     loop {
-        println!("did one iteration of the inner loop");
+        dbg!("did one iteration of the inner loop");
         if let Some(parent) = new_root.parent() {
             new_root = parent;
         } else {
@@ -22,8 +25,8 @@ pub fn kill_node(node: &SyntaxNode<NixLanguage>) -> Result<SyntaxNode<NixLanguag
     Ok(new_root)
 }
 
-fn get_str_val(node: &SyntaxNode<NixLanguage>) -> Result<String, String> {
-    Ok(Str::cast((*node).clone()).unwrap().parts().iter().fold(
+fn get_str_val(node: &NixNode) -> Result<String, String> {
+    Ok(Str::cast(node.clone()).unwrap().parts().iter().fold(
         String::new(),
         |mut acc, ele| -> String {
             match ele {
@@ -40,28 +43,31 @@ fn get_str_val(node: &SyntaxNode<NixLanguage>) -> Result<String, String> {
 fn search_for_attr(
     attr: String,
     max_depth: usize,
-    root_node: &SyntaxNode<NixLanguage>,
+    root_node: &NixNode,
     exact_depth: Option<usize>,
-) -> Result<Vec<(SyntaxNode<NixLanguage>, String, usize)>, String> {
+) -> Result<Vec<(NixNode, String, usize)>, String> {
     // assuming that the root node is an attrset
     let mut stack = match AttrSet::cast((*root_node).clone()) {
         Some(rn) => rn.entries().map(|x| (x, String::new())).collect(),
         None => Vec::new(),
     };
 
-    let mut remaining_items_prev: usize = stack.len();
-    let mut remaining_items_cur: usize = 0;
+    let mut remaining_items_prev = stack.len();
+    let mut remaining_items_cur = 0;
     let mut cur_depth = 0;
     let mut result = Vec::new();
+
     while !stack.is_empty() {
         let (cur_node, mut path) = stack.pop().unwrap();
         let cur_node_value = cur_node.value().unwrap();
         let cur_node_key = cur_node.key().unwrap();
+
         if remaining_items_prev == 0 {
             remaining_items_prev = remaining_items_cur - 1;
             remaining_items_cur = 0;
             cur_depth += 1;
         }
+
         if cur_depth > max_depth {
             //return Err(format!("Attribute {} does not exist at depth {:?}", attr, max_depth));
             // failing softly here since we're past the max depth
@@ -72,6 +78,7 @@ fn search_for_attr(
         let mut real_depth = cur_depth;
         let mut cur_node_attribute = "".to_string();
         let mut is_match = false;
+
         for p in cur_node_key.path() {
             let tmp = Ident::cast(p).unwrap();
             let cur_attr = tmp.as_str();
@@ -83,16 +90,16 @@ fn search_for_attr(
 
         path.push_str(&cur_node_attribute);
         is_match = (is_match || cur_node_attribute == attr)
-            && exact_depth.map_or(true, |x| -> bool { x == real_depth });
+            && exact_depth.map_or(true, |x| x == real_depth);
         if is_match {
             result.push((cur_node_value, path, real_depth));
         } else {
             match cur_node_value.kind() {
                 NODE_ATTR_SET => {
-                    let cur_node_casted = AttrSet::cast(cur_node_value.clone()).unwrap();
                     if is_match {
                         result.push((cur_node_value, path, real_depth));
                     } else {
+                        let cur_node_casted = AttrSet::cast(cur_node_value).unwrap();
                         cur_node_casted.entries().for_each(|entry| {
                             stack.insert(0, (entry, path.clone()));
                             remaining_items_cur += 1;
@@ -101,25 +108,25 @@ fn search_for_attr(
                 }
                 NODE_STRING => {
                     // TODO this should morally speaking *actually* fail
-                    println!("nothing fail");
+                    dbg!("nothing fail");
                 }
-                _kind => (), // println!("other kind: {:?}", _kind)
+                _kind => (), // dbg!("other kind: {:?}", _kind)
             }
         }
     }
     Ok(result)
 }
 
-pub fn get_inputs(root: &SyntaxNode<NixLanguage>) -> HashMap<String, SyntaxNode<NixLanguage>> {
+pub fn get_inputs(root: &NixNode) -> HashMap<String, NixNode> {
     let input_attrs = search_for_attr("inputs".to_string(), 1, root, None).unwrap();
-    input_attrs.iter().fold(
-        HashMap::new(),
-        |mut acc, (ele, _attribute_path, depth)| -> HashMap<String, SyntaxNode<NixLanguage>> {
-            let expected_depth = 3;
+    input_attrs
+        .iter()
+        .fold(HashMap::new(), |mut acc, (ele, _attribute_path, depth)| {
+            const EXPECTED_DEPTH: usize = 3;
             match ele.kind() {
                 // edge case of entire attribute set at once. E.g. inputs.nixpkgs.url =
                 NODE_STRING => {
-                    if *depth == expected_depth {
+                    if *depth == EXPECTED_DEPTH {
                         let result = Str::cast(ele.clone()).unwrap().parts().iter().fold(
                             String::new(),
                             |mut i_acc, i_ele| {
@@ -138,10 +145,8 @@ pub fn get_inputs(root: &SyntaxNode<NixLanguage>) -> HashMap<String, SyntaxNode<
                     .iter()
                     .fold(
                         acc,
-                        |mut n_acc: HashMap<String, SyntaxNode<NixLanguage>>,
-                         (n_ele, _n_node, n_depth)|
-                         -> HashMap<String, SyntaxNode<NixLanguage>> {
-                            if depth + n_depth == expected_depth {
+                        |mut n_acc: HashMap<String, NixNode>, (n_ele, _n_node, n_depth)| {
+                            if depth + n_depth == EXPECTED_DEPTH {
                                 n_acc.insert(get_str_val(n_ele).unwrap(), n_ele.clone());
                             }
                             n_acc
@@ -149,6 +154,5 @@ pub fn get_inputs(root: &SyntaxNode<NixLanguage>) -> HashMap<String, SyntaxNode<
                     ),
                 _ => acc,
             }
-        },
-    )
+        })
 }
