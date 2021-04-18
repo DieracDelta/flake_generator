@@ -3,7 +3,7 @@ mod user;
 
 use std::{fs, str::FromStr};
 
-use parser::kill_node;
+use parser::kill_node_attribute;
 use rnix::types::*;
 use user::*;
 
@@ -98,7 +98,7 @@ fn main() {
                             .unwrap()
                             .parent()
                             .unwrap();
-                        let new_root = match kill_node(dead_node) {
+                        let new_root = match kill_node_attribute(dead_node) {
                             Ok(node) => node,
                             Err(err) => {
                                 // TODO show user the error here

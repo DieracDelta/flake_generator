@@ -1,13 +1,12 @@
-use std::collections::HashMap;
-
 use rnix::{types::*, NixLanguage, StrPart, SyntaxKind::*};
 use rowan::{api::SyntaxNode, GreenNodeBuilder};
 
 pub(crate) type NixNode = SyntaxNode<NixLanguage>;
 
+use std::collections::HashMap;
+
+// this is decent as a general technique, but bad for specifics
 pub fn kill_node(node: &NixNode) -> Result<NixNode, String> {
-    // TODO replace 2 with TOKEN_WHITESPACE
-    //let newnode = GreenNode::new(rowan::SyntaxKind(2), vec![].iter());
     let mut new_node = GreenNodeBuilder::new();
     new_node.start_node(rowan::SyntaxKind(node.kind() as u16));
     new_node.finish_node();
@@ -22,7 +21,50 @@ pub fn kill_node(node: &NixNode) -> Result<NixNode, String> {
             break;
         }
     }
-    Ok(new_root)
+    Ok(Root::cast(new_root).unwrap().inner().unwrap())
+}
+
+/// what should be done is:
+/// (1) get parent attrset
+/// (2) iterate through children nodes, searching for one to delete
+/// (4) return with the replaced thing
+pub fn kill_node_attribute(node: &NixNode) -> Result<NixNode, String> {
+    let parent = node.parent().unwrap();
+    match parent.kind() {
+        NODE_ATTR_SET => {
+            let idx = parent
+                .green()
+                .children()
+                .enumerate()
+                // TODO this should be a filter instead of a fold
+                // TODO better error handling
+                .fold(0, |correct_idx, (idx, val)| -> usize {
+                    if let Some(inner_node) = val.into_node() {
+                        if *inner_node == node.green().to_owned() {
+                            idx
+                        } else {
+                            correct_idx
+                        }
+                    } else {
+                        correct_idx
+                    }
+                });
+            let new_parent = parent.green().remove_child(idx);
+            println!("the new parent is: {:?}", new_parent.to_string());
+            println!("the old parent is: {:?}", parent.to_string());
+            let mut new_root = NixNode::new_root(parent.replace_with(new_parent));
+            loop {
+                if let Some(parent) = new_root.parent() {
+                    new_root = parent;
+                } else {
+                    break;
+                }
+            }
+            let tmp = Root::cast(new_root).unwrap();
+            Ok(tmp.inner().unwrap())
+        }
+        NODE_STR => unimplemented!(),
+    }
 }
 
 fn get_str_val(node: &NixNode) -> Result<String, String> {
@@ -49,7 +91,10 @@ fn search_for_attr(
     // assuming that the root node is an attrset
     let mut stack = match AttrSet::cast((*root_node).clone()) {
         Some(rn) => rn.entries().map(|x| (x, String::new())).collect(),
-        None => Vec::new(),
+        None => {
+            println!("failed to convert!");
+            Vec::new()
+        }
     };
 
     let mut remaining_items_prev = stack.len();
