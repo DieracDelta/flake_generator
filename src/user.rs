@@ -1,12 +1,8 @@
 use crate::parser::{self, NixNode};
 
-use std::{
-    collections::HashMap,
-    fmt::{self, Display, Formatter},
-    io::Cursor,
-    str::FromStr,
-};
+use std::{collections::HashMap, io::Cursor, str::FromStr};
 
+use parse_display::{Display, FromStr};
 use skim::prelude::*;
 
 //#[derive(Eq, PartialEq, Debug, Clone)]
@@ -19,7 +15,6 @@ pub struct UserMetadata {
     pub root: Option<NixNode>,
     pub inputs: Option<HashMap<String, NixNode>>,
     pub filename: Option<String>,
-    pub modify_existing: bool,
 }
 
 impl UserMetadata {
@@ -42,7 +37,7 @@ impl UserMetadata {
         }
     }
 
-    pub fn get_prompt_items(&mut self, action: UserAction) -> Vec<UserPrompt> {
+    pub fn get_prompt_items(&mut self, action: &UserAction) -> Vec<UserPrompt> {
         match action {
             UserAction::Intro => vec![UserPrompt::Create, UserPrompt::Modify, UserPrompt::Exit],
             UserAction::IntroParsed => vec![
@@ -50,7 +45,7 @@ impl UserMetadata {
                 UserPrompt::AddInput,
                 UserPrompt::Back,
             ],
-            UserAction::ModifyExisting => vec![UserPrompt::Back],
+            UserAction::ModifyExisting => vec![],
             UserAction::RemoveInput => {
                 //check cache
                 let mut prompts: Vec<UserPrompt> = self
@@ -71,18 +66,19 @@ impl UserMetadata {
                 prompts.push(UserPrompt::Back);
                 prompts
             }
+            UserAction::Error(_) => vec![UserPrompt::Back, UserPrompt::StartOver, UserPrompt::Exit],
             x => unimplemented!("prompt not implemented for: {:?}", x),
         }
     }
 
-    pub fn get_user_result(&mut self, a: UserAction) -> String {
+    pub fn get_user_result(&mut self, a: &UserAction) -> String {
         query_user_input(
             a.to_string().lines().map(str::to_string).collect(),
             self.get_prompt_items(a)
                 .into_iter()
                 .map(|p| p.to_string())
                 .collect(),
-            a == UserAction::ModifyExisting,
+            &UserAction::ModifyExisting == a,
         )
     }
 }
@@ -93,100 +89,60 @@ impl Default for UserMetadata {
             root: None,
             inputs: None,
             filename: None,
-            modify_existing: false,
         }
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, Display, FromStr)]
 pub enum UserPrompt {
+    #[display("start over")]
+    StartOver,
+    #[display("back")]
     Back,
+    #[display("exit")]
     Exit,
+    #[display("create")]
     Create,
+    #[display("modify")]
     Modify,
+    #[display("delete input")]
     DeleteInput,
+    #[display("add input")]
     AddInput,
+    #[display("{0}")]
     Other(String),
 }
 
-impl UserPrompt {
-    pub fn as_str(&self) -> &str {
-        match self {
-            UserPrompt::Back => "back",
-            UserPrompt::Exit => "exit",
-            UserPrompt::Create => "create",
-            UserPrompt::Modify => "modify",
-            UserPrompt::DeleteInput => "delete input",
-            UserPrompt::AddInput => "add input",
-            UserPrompt::Other(o) => &o,
-        }
-    }
-}
-
-impl Display for UserPrompt {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        write!(f, "{}", self.as_str())
-    }
-}
-
-impl FromStr for UserPrompt {
-    type Err = std::convert::Infallible;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if s == UserPrompt::Create.as_str() {
-            Ok(UserPrompt::Create)
-        } else if s == UserPrompt::Modify.as_str() {
-            Ok(UserPrompt::Modify)
-        } else if s == UserPrompt::AddInput.as_str() {
-            Ok(UserPrompt::AddInput)
-        } else if s == UserPrompt::DeleteInput.as_str() {
-            Ok(UserPrompt::DeleteInput)
-        } else if s == UserPrompt::Exit.as_str() {
-            Ok(UserPrompt::Exit)
-        } else if s == UserPrompt::Back.as_str() {
-            Ok(UserPrompt::Back)
-        } else {
-            Ok(UserPrompt::Other(s.into()))
-        }
-    }
-}
-
-#[derive(Eq, PartialEq, Debug, Copy, Clone)]
+#[derive(Eq, PartialEq, Debug, Clone, Display)]
 pub enum UserAction {
+    #[display("Welcome. Would you like to create a new flake or modify an existing flake?")]
     Intro,
+    #[display("What would you like to do?")]
     IntroParsed,
     Exit,
+    #[display("Choose the flake.")]
     ModifyExisting,
     CreateNew,
+    #[display("Add a dependency to your flake.\nPlease select an package from nixpkgs.")]
     AddDep,
+    #[display("Remove a dependency from your flake.\nPlease select a input to remove.")]
     RemoveDep,
+    #[display(
+        "Add an input to your flake.\nPlease input a flake url and indicate if it's a flake"
+    )]
     AddInput,
+    #[display("Please select an input to remove.")]
     RemoveInput,
     GenLib,
+    #[display("Is the input a flake?")]
     IsInputFlake,
+    #[display("placeholder")] // TODO write display for this
     GenBin(Lang),
+    #[display("Encountered an error: {0}")]
+    Error(String),
 }
 
-impl Display for UserAction {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        match self {
-            UserAction::IntroParsed => write!(f, "What would you like to do?"),
-            UserAction::AddDep => write!(f, "Add a dependency to your flake.\nPlease select an package from nixpkgs."),
-            UserAction::RemoveDep => write!(f, "Remove a dependency from your flake.\nPlease select a input to remove."),
-            UserAction::AddInput => write!(f, "Add an input to your flake.\nPlease input a flake url and indicate if it's a flake"),
-            UserAction::IsInputFlake => write!(f, "Is the input a flake?"),
-            UserAction::RemoveInput => write!(f, "Please select an input to remove."),
-            UserAction::GenLib => unimplemented!(),
-            UserAction::GenBin(_) => unimplemented!(),
-            UserAction::ModifyExisting => write!(f, "Choose the flake."),
-            UserAction::CreateNew => unimplemented!(),
-            UserAction::Intro => write!(f, "Welcome. Would you like to create a new flake or modify an existing flake?"),
-            _ => unimplemented!(),
-        }
-    }
-}
-
-#[derive(Eq, PartialEq, Debug, Copy, Clone)]
+#[derive(Eq, PartialEq, Debug, Copy, Clone, Display)]
 pub enum Lang {
     Rust,
     Haskell,
