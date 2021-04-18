@@ -55,17 +55,14 @@ pub fn kill_node_attribute(node: &NixNode) -> Result<NixNode, String> {
             println!("the new parent is: {:?}", new_parent.to_string());
             println!("the old parent is: {:?}", parent.to_string());
             let mut new_root = NixNode::new_root(parent.replace_with(new_parent));
-            loop {
-                if let Some(parent) = new_root.parent() {
-                    new_root = parent;
-                } else {
-                    break;
-                }
+            while let Some(parent) = new_root.parent() {
+                new_root = parent;
             }
             let tmp = Root::cast(new_root).unwrap();
             Ok(tmp.inner().unwrap())
         }
-        NODE_STR => unimplemented!(),
+        // ??? variable `NODE_STR` should have a snake case name
+        _ => unimplemented!(),
     }
 }
 
