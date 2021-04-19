@@ -379,6 +379,7 @@ dependencies = [
 name = "flake_generator"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "parse-display",
  "rnix",
  "rowan",

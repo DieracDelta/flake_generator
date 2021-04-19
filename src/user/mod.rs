@@ -4,6 +4,7 @@ use crate::parser::{self, NixNode};
 
 use std::{collections::HashMap, io::Cursor, str::FromStr};
 
+use anyhow::anyhow;
 use parse_display::{Display, FromStr};
 use skim::prelude::*;
 
@@ -59,7 +60,7 @@ impl UserMetadata {
         }
     }
 
-    pub fn get_user_prompt(&mut self, a: &UserAction) -> UserPrompt {
+    pub fn get_user_prompt(&mut self, a: &UserAction) -> anyhow::Result<UserPrompt> {
         let input = query_user_input(
             a.to_string().lines().map(str::to_string).collect(),
             self.get_prompt_items(a)
@@ -67,8 +68,8 @@ impl UserMetadata {
                 .map(|p| p.to_string())
                 .collect(),
             &UserAction::ModifyExisting == a,
-        );
-        UserPrompt::from_str(&input).unwrap()
+        )?;
+        Ok(UserPrompt::from_str(&input).unwrap())
     }
 }
 
@@ -136,7 +137,11 @@ pub enum Lang {
     JavaScript,
 }
 
-pub fn query_user_input(prompt: Vec<String>, items: Vec<String>, files: bool) -> String {
+pub fn query_user_input(
+    prompt: Vec<String>,
+    items: Vec<String>,
+    files: bool,
+) -> anyhow::Result<String> {
     let header_len = prompt.len();
     let items_len = items.len();
 
@@ -163,9 +168,14 @@ pub fn query_user_input(prompt: Vec<String>, items: Vec<String>, files: bool) ->
     let items = (!files).then(|| item_reader.of_bufread(Cursor::new(agg(items))));
 
     let result = Skim::run_with(&options, items).expect("skim failed: something is very wrong");
-    if items_len > 0 || files {
-        result.selected_items.get(0).unwrap().output().to_string()
+    Ok(if items_len > 0 || files {
+        result
+            .selected_items
+            .get(0)
+            .ok_or_else(|| anyhow!("no chosen item"))?
+            .output()
+            .to_string()
     } else {
         result.query
-    }
+    })
 }
