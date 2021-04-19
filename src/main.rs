@@ -1,7 +1,7 @@
 mod parser;
 mod user;
 
-use std::{fs, str::FromStr};
+use std::fs;
 
 use parser::kill_node_attribute;
 use rnix::types::*;
@@ -41,7 +41,17 @@ fn main() {
 
     loop {
         let cur_action = action_stack.current();
-        let user_selection = user_data.get_user_prompt(cur_action);
+        let user_selection = match user_data.get_user_prompt(cur_action) {
+            Ok(prompt) => prompt,
+            Err(err) => {
+                action_stack.push(UserAction::Error(format!(
+                    "could not process prompt: {}",
+                    err
+                )));
+                continue;
+            }
+        };
+
         match user_selection {
             UserPrompt::Back => {
                 action_stack.pop();
