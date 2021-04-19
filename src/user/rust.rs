@@ -1,4 +1,5 @@
 use parse_display::{Display, FromStr};
+use rust_nix_templater::*;
 
 use super::{UserAction, UserMetadata, UserPrompt};
 
@@ -11,7 +12,10 @@ pub enum Prompt {
 impl Prompt {
     pub fn get_action(&self, user_data: &mut UserMetadata, cur_action: &UserAction) -> UserAction {
         match self {
-            Prompt::Generate => UserAction::Rust(Action::Generated),
+            Prompt::Generate => match run_with_options(user_data.rust_options.clone(), false) {
+                Ok(_) => UserAction::Rust(Action::Generated),
+                Err(err) => UserAction::Error(format!("rust-nix-templater failed: {}", err)),
+            },
         }
     }
 }
