@@ -171,15 +171,15 @@ impl Action {
                 Prompt::SetSystems(user_data.rust_options.package_systems.as_ref().map_or_else(
                     String::new,
                     |sys| {
-                        sys.into_iter()
-                            .cloned()
-                            .map(|mut s| {
-                                s.push(' ');
-                                s
-                            })
-                            .collect::<String>()
-                            .trim()
-                            .to_string()
+                        let mut str = String::with_capacity(
+                            sys.iter().map(String::len).sum::<usize>() + sys.len(),
+                        );
+                        sys.into_iter().for_each(|s| {
+                            str.push_str(s);
+                            str.push(' ');
+                        });
+                        str.pop();
+                        str
                     },
                 ))
                 .into(),
