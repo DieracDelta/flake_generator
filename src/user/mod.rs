@@ -4,24 +4,55 @@ use crate::parser::{self, NixNode};
 
 use std::{collections::HashMap, io::Cursor, str::FromStr};
 
-use anyhow::anyhow;
 use parse_display::{Display, FromStr};
 use skim::prelude::*;
+use smol_str::SmolStr;
+
+#[derive(Debug, Default, Clone, PartialEq, Eq, Display)]
+pub struct SmlStr(pub SmolStr);
+
+impl SmlStr {
+    pub const fn new_inline(s: &str) -> Self {
+        Self(SmolStr::new_inline(s))
+    }
+}
+
+impl Into<String> for SmlStr {
+    fn into(self) -> String {
+        self.0.into()
+    }
+}
+
+impl From<String> for SmlStr {
+    fn from(s: String) -> Self {
+        Self(s.into())
+    }
+}
+
+impl From<&String> for SmlStr {
+    fn from(s: &String) -> Self {
+        Self(s.into())
+    }
+}
+
+impl FromStr for SmlStr {
+    type Err = std::convert::Infallible;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(SmlStr(s.into()))
+    }
+}
 
 #[derive(Debug, Default)]
-pub struct UserMetadata {
-    pub root: Option<NixNode>,
-    pub inputs: Option<HashMap<String, NixNode>>,
-    pub filename: Option<String>,
-    pub rust_options: rust_nix_templater::Options,
+pub(crate) struct UserMetadata {
+    pub(crate) root: Option<NixNode>,
+    pub(crate) inputs: Option<HashMap<String, NixNode>>,
+    pub(crate) filename: Option<String>,
+    pub(crate) rust_options: rust_nix_templater::Options,
 }
 
 impl UserMetadata {
-    pub fn root_ref(&self) -> &NixNode {
-        self.root.as_ref().unwrap()
-    }
-
-    pub fn new_root(&mut self, root: NixNode) {
+    pub(crate) fn new_root(&mut self, root: NixNode) {
         self.inputs = None;
         self.root = Some(root);
     }
@@ -32,11 +63,7 @@ impl UserMetadata {
             .get_or_insert_with(|| parser::get_inputs(root_ref.unwrap()))
     }
 
-    pub fn get_inputs(&mut self) -> HashMap<String, NixNode> {
-        self.ensure_inputs().clone()
-    }
-
-    pub fn get_prompt_items(&mut self, action: &UserAction) -> Vec<UserPrompt> {
+    pub(crate) fn get_prompt_items(&mut self, action: &UserAction) -> Vec<UserPrompt> {
         match action {
             UserAction::Rust(act) => act.get_prompt_items(self),
             UserAction::Intro => vec![UserPrompt::Create, UserPrompt::Modify, UserPrompt::Exit],
@@ -60,21 +87,24 @@ impl UserMetadata {
         }
     }
 
-    pub fn get_user_prompt(&mut self, a: &UserAction) -> anyhow::Result<UserPrompt> {
+    pub(crate) fn get_user_prompt(&mut self, a: &UserAction) -> anyhow::Result<UserPrompt> {
         let input = query_user_input(
             a.to_string().lines().map(str::to_string).collect(),
             self.get_prompt_items(a)
                 .into_iter()
                 .map(|p| p.to_string())
                 .collect(),
-            &UserAction::ModifyExisting == a,
+            matches!(
+                a,
+                UserAction::ModifyExisting | UserAction::Rust(rust::Action::SetIcon)
+            ),
         )?;
         Ok(UserPrompt::from_str(&input).unwrap())
     }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Display, FromStr)]
-pub enum UserPrompt {
+pub(crate) enum UserPrompt {
     #[display("start over")]
     StartOver,
     #[display("back")]
@@ -94,11 +124,11 @@ pub enum UserPrompt {
     #[display("{0}")]
     SelectLang(Lang),
     #[display("{0}")]
-    Other(String),
+    Other(SmlStr),
 }
 
 #[derive(Eq, PartialEq, Debug, Clone, Display)]
-pub enum UserAction {
+pub(crate) enum UserAction {
     #[display("Welcome. Would you like to create a new flake or modify an existing flake?")]
     Intro,
     #[display("What would you like to do?")]
@@ -126,7 +156,7 @@ pub enum UserAction {
 }
 
 #[derive(Eq, PartialEq, Debug, Copy, Clone, Display, FromStr)]
-pub enum Lang {
+pub(crate) enum Lang {
     #[display("rust")]
     Rust,
     #[display("haskell")]
@@ -137,13 +167,12 @@ pub enum Lang {
     JavaScript,
 }
 
-pub fn query_user_input(
+pub(crate) fn query_user_input(
     prompt: Vec<String>,
     items: Vec<String>,
     files: bool,
 ) -> anyhow::Result<String> {
     let header_len = prompt.len();
-    let items_len = items.len();
 
     let agg = |x: Vec<String>| -> String {
         x.into_iter().rev().fold(String::new(), |mut acc, ele| {
@@ -155,10 +184,9 @@ pub fn query_user_input(
     let agg_prompt = agg(prompt);
 
     let options = SkimOptionsBuilder::default()
-        .algorithm(FuzzyAlgorithm::Clangd)
         .header(Some(&agg_prompt))
         .header_lines(header_len)
-        .prompt(Some("Provide input:"))
+        .prompt(Some("Provide input: "))
         .inline_info(false)
         .multi(false)
         .build()
@@ -168,14 +196,8 @@ pub fn query_user_input(
     let items = (!files).then(|| item_reader.of_bufread(Cursor::new(agg(items))));
 
     let result = Skim::run_with(&options, items).expect("skim failed: something is very wrong");
-    Ok(if items_len > 0 || files {
-        result
-            .selected_items
-            .get(0)
-            .ok_or_else(|| anyhow!("no chosen item"))?
-            .output()
-            .to_string()
-    } else {
-        result.query
-    })
+    Ok(result
+        .selected_items
+        .get(0)
+        .map_or(result.query, |item| item.output().to_string()))
 }
