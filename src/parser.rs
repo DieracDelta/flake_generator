@@ -36,34 +36,33 @@ pub fn kill_node_attribute(node: &NixNode) -> Result<NixNode, String> {
                 .green()
                 .children()
                 .enumerate()
-                // TODO this should be a filter instead of a fold
                 // TODO better error handling
-                .fold(0, |correct_idx, (idx, val)| -> usize {
-                    if let Some(inner_node) = val.into_node() {
+                .filter_map(|(idx, val)| {
+                    val.into_node().and_then(|inner_node| {
+                        // the '.to_owned()' is required to turn GreenNodeData into GreenNode
+                        // because GreenNodeData doesn't implement PartialEq
                         if *inner_node == node.green().to_owned() {
-                            idx
+                            Some(idx)
                         } else {
-                            correct_idx
+                            None
                         }
-                    } else {
-                        correct_idx
-                    }
-                });
+                    })
+                })
+                // TODO is this really what we want
+                .last()
+                .unwrap_or(0);
             let new_parent = parent.green().remove_child(idx);
             println!("the new parent is: {:?}", new_parent.to_string());
             println!("the old parent is: {:?}", parent.to_string());
             let mut new_root = NixNode::new_root(parent.replace_with(new_parent));
-            loop {
-                if let Some(parent) = new_root.parent() {
-                    new_root = parent;
-                } else {
-                    break;
-                }
+            while let Some(parent) = new_root.parent() {
+                new_root = parent;
             }
             let tmp = Root::cast(new_root).unwrap();
             Ok(tmp.inner().unwrap())
         }
-        NODE_STR => unimplemented!(),
+        // ??? variable `NODE_STR` should have a snake case name
+        _ => unimplemented!(),
     }
 }
 
