@@ -728,8 +728,8 @@ dependencies = [
 
 [[package]]
 name = "rust-nix-templater"
-version = "0.2.2"
-source = "git+https://github.com/yusdacra/rust-nix-templater.git?branch=master#79a115136e77c5de533376cab9694cf9f3a6b7ed"
+version = "0.2.3"
+source = "git+https://github.com/yusdacra/rust-nix-templater.git?branch=master#bf04273955b70c4c8b0af9fa0aa9aa7995ad1182"
 dependencies = [
  "anyhow",
  "structopt",

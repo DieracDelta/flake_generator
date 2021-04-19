@@ -41,6 +41,7 @@ fn main() {
 
     loop {
         let cur_action = action_stack.current();
+
         let user_selection = match user_data.get_user_prompt(cur_action) {
             Ok(prompt) => prompt,
             Err(err) => {
@@ -67,13 +68,18 @@ fn main() {
                 lang => todo!("lang {}", lang),
             },
             UserPrompt::Rust(prompt) => {
-                let action = prompt.get_action(&mut user_data, cur_action);
-                action_stack.push(action);
+                let cur_action = cur_action.clone();
+                prompt.process_prompt(&mut action_stack, &mut user_data, &cur_action);
             }
             UserPrompt::Other(other) => {
                 match cur_action {
+                    UserAction::Rust(action) => {
+                        action
+                            .clone()
+                            .process_action(other, &mut action_stack, &mut user_data)
+                    }
                     UserAction::ModifyExisting => {
-                        let content = match fs::read_to_string(&other) {
+                        let content = match fs::read_to_string(other.0.as_str()) {
                             Ok(content) => content,
                             Err(err) => {
                                 const IS_DIRECTORY_ERRNO: i32 = 21;
@@ -109,7 +115,7 @@ fn main() {
                             .inputs
                             .clone()
                             .unwrap()
-                            .get(&other)
+                            .get(other.0.as_str())
                             .unwrap()
                             .parent()
                             .unwrap();
