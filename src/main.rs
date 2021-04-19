@@ -41,19 +41,25 @@ fn main() {
 
     loop {
         let cur_action = action_stack.current();
-        let user_selection = UserPrompt::from_str(&user_data.get_user_result(cur_action)).unwrap();
+        let user_selection = user_data.get_user_prompt(cur_action);
         match user_selection {
             UserPrompt::Back => {
                 action_stack.pop();
             }
             UserPrompt::Exit => break,
             UserPrompt::StartOver => action_stack.clear(),
-            UserPrompt::Create => todo!("implement create; prompt for a name"),
-            UserPrompt::Modify => {
-                action_stack.push(UserAction::ModifyExisting);
-            }
+            UserPrompt::Create => action_stack.push(UserAction::CreateNew),
+            UserPrompt::Modify => action_stack.push(UserAction::ModifyExisting),
             UserPrompt::DeleteInput => action_stack.push(UserAction::RemoveInput),
             UserPrompt::AddInput => action_stack.push(UserAction::AddInput),
+            UserPrompt::SelectLang(lang) => match lang {
+                Lang::Rust => action_stack.push(UserAction::Rust(user::rust::Action::Intro)),
+                lang => todo!("lang {}", lang),
+            },
+            UserPrompt::Rust(prompt) => {
+                let action = prompt.get_action(&mut user_data, cur_action);
+                action_stack.push(action);
+            }
             UserPrompt::Other(other) => {
                 match cur_action {
                     UserAction::ModifyExisting => {
