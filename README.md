@@ -54,7 +54,7 @@ and naersk.
 
 # Dependencies #
 
-I'm using the `hnix` parser to generate nix expressions,
+I'm using the `rnix` parser to generate nix expressions,
 and the `skim` fuzzy finder for the cli.
 
 # Roadmap #
@@ -73,6 +73,6 @@ and the `skim` fuzzy finder for the cli.
 - [ ] Specify flake outputs
 - [ ] Support of specific languages:
     - [ ] Python
-    - [ ] Rust
+    - [x] Rust
     - [ ] Haskell
 
