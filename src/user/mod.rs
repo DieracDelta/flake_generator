@@ -41,12 +41,14 @@ impl UserMetadata {
 
     pub fn get_prompt_items(&mut self, action: &UserAction) -> Vec<UserPrompt> {
         match action {
+            UserAction::Rust(act) => act.get_prompt_items(self),
             UserAction::Intro => vec![UserPrompt::Create, UserPrompt::Modify, UserPrompt::Exit],
             UserAction::IntroParsed => vec![
                 UserPrompt::DeleteInput,
                 UserPrompt::AddInput,
                 UserPrompt::Back,
             ],
+            UserAction::CreateNew => vec![UserPrompt::SelectLang(Lang::Rust), UserPrompt::Back],
             UserAction::ModifyExisting => vec![],
             UserAction::RemoveInput => {
                 // check cache
@@ -61,15 +63,16 @@ impl UserMetadata {
         }
     }
 
-    pub fn get_user_result(&mut self, a: &UserAction) -> String {
-        query_user_input(
+    pub fn get_user_prompt(&mut self, a: &UserAction) -> UserPrompt {
+        let input = query_user_input(
             a.to_string().lines().map(str::to_string).collect(),
             self.get_prompt_items(a)
                 .into_iter()
                 .map(|p| p.to_string())
                 .collect(),
             &UserAction::ModifyExisting == a,
-        )
+        );
+        UserPrompt::from_str(&input).unwrap()
     }
 }
 
@@ -100,6 +103,10 @@ pub enum UserPrompt {
     #[display("add input")]
     AddInput,
     #[display("{0}")]
+    Rust(rust::Prompt),
+    #[display("{0}")]
+    SelectLang(Lang),
+    #[display("{0}")]
     Other(String),
 }
 
@@ -109,9 +116,9 @@ pub enum UserAction {
     Intro,
     #[display("What would you like to do?")]
     IntroParsed,
-    Exit,
     #[display("Choose the flake.")]
     ModifyExisting,
+    #[display("Choose a flake generator.")]
     CreateNew,
     #[display("Add a dependency to your flake.\nPlease select an package from nixpkgs.")]
     AddDep,
@@ -123,20 +130,23 @@ pub enum UserAction {
     AddInput,
     #[display("Please select an input to remove.")]
     RemoveInput,
-    GenLib,
     #[display("Is the input a flake?")]
     IsInputFlake,
-    #[display("placeholder")] // TODO write display for this
-    GenBin(Lang),
     #[display("Encountered an error: {0}")]
     Error(String),
+    #[display("{0}")]
+    Rust(rust::Action),
 }
 
-#[derive(Eq, PartialEq, Debug, Copy, Clone, Display)]
+#[derive(Eq, PartialEq, Debug, Copy, Clone, Display, FromStr)]
 pub enum Lang {
+    #[display("rust")]
     Rust,
+    #[display("haskell")]
     Haskell,
+    #[display("python")]
     Python,
+    #[display("javascript")]
     JavaScript,
 }
 
