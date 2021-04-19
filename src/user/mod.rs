@@ -7,16 +7,12 @@ use std::{collections::HashMap, io::Cursor, str::FromStr};
 use parse_display::{Display, FromStr};
 use skim::prelude::*;
 
-//#[derive(Eq, PartialEq, Debug, Clone)]
-//pub struct UserResult {
-//user_selection: String,
-//}
-
-#[derive(Eq, PartialEq, Debug, Clone)]
+#[derive(Debug, Default)]
 pub struct UserMetadata {
     pub root: Option<NixNode>,
     pub inputs: Option<HashMap<String, NixNode>>,
     pub filename: Option<String>,
+    pub rust_options: rust_nix_templater::Options,
 }
 
 impl UserMetadata {
@@ -73,16 +69,6 @@ impl UserMetadata {
             &UserAction::ModifyExisting == a,
         );
         UserPrompt::from_str(&input).unwrap()
-    }
-}
-
-impl Default for UserMetadata {
-    fn default() -> Self {
-        UserMetadata {
-            root: None,
-            inputs: None,
-            filename: None,
-        }
     }
 }
 

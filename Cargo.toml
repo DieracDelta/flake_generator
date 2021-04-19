@@ -11,6 +11,7 @@ skim = "0.9.4"
 rnix = "0.9.0"
 rowan = "0.12.6"
 parse-display = "0.4.1"
+rust-nix-templater = { git = "https://github.com/yusdacra/rust-nix-templater.git", branch = "master"  }
 
 [package.metadata.nix]
 app = true
