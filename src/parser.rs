@@ -13,12 +13,8 @@ pub fn kill_node(node: &NixNode) -> Result<NixNode, String> {
     let a = new_node.finish();
     let b = node.replace_with(a);
     let mut new_root = NixNode::new_root(b);
-    loop {
-        if let Some(parent) = new_root.parent() {
-            new_root = parent;
-        } else {
-            break;
-        }
+    while let Some(parent) = new_root.parent() {
+        new_root = parent;
     }
     Ok(Root::cast(new_root).unwrap().inner().unwrap())
 }
@@ -95,20 +91,12 @@ fn search_for_attr(
         }
     };
 
-    let mut remaining_items_prev = stack.len();
-    let mut remaining_items_cur = 0;
     let mut result = Vec::new();
 
     while !stack.is_empty() {
         let (cur_node, mut path, mut cur_depth) = stack.pop().unwrap();
         let cur_node_value = cur_node.value().unwrap();
         let cur_node_key = cur_node.key().unwrap();
-
-        if remaining_items_prev == 0 {
-            remaining_items_prev = remaining_items_cur - 1;
-            remaining_items_cur = 0;
-            cur_depth += 1;
-        }
 
         if cur_depth > max_depth {
             // failing softly here since we're past the max depth
@@ -137,11 +125,13 @@ fn search_for_attr(
         } else {
             match cur_node_value.kind() {
                 NODE_ATTR_SET => {
+                    let orig_stack_size = stack.len();
                     let cur_node_casted = AttrSet::cast(cur_node_value).unwrap();
-                    cur_node_casted.entries().for_each(|entry| {
-                        stack.push((entry, path.clone(), real_depth));
-                        remaining_items_cur += 1;
-                    });
+                    stack.extend(
+                        cur_node_casted
+                            .entries()
+                            .map(|entry| (entry, path.clone(), real_depth)),
+                    );
                 }
                 NODE_STRING => {
                     // TODO this should morally speaking *actually* fail
