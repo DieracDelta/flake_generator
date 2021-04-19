@@ -94,7 +94,7 @@ fn search_for_attr(
     let mut result = Vec::new();
 
     while !stack.is_empty() {
-        let (cur_node, mut path, mut cur_depth) = stack.pop().unwrap();
+        let (cur_node, mut path, cur_depth) = stack.pop().unwrap();
         let cur_node_value = cur_node.value().unwrap();
         let cur_node_key = cur_node.key().unwrap();
 
@@ -125,7 +125,6 @@ fn search_for_attr(
         } else {
             match cur_node_value.kind() {
                 NODE_ATTR_SET => {
-                    let orig_stack_size = stack.len();
                     let cur_node_casted = AttrSet::cast(cur_node_value).unwrap();
                     stack.extend(
                         cur_node_casted
