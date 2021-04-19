@@ -15,9 +15,7 @@ impl ActionStack {
     const START_ACTION: UserAction = UserAction::Intro;
 
     fn new() -> Self {
-        Self {
-            inner: vec![Self::START_ACTION],
-        }
+        Self { inner: Vec::new() }
     }
 
     fn push(&mut self, action: UserAction) {
@@ -25,21 +23,15 @@ impl ActionStack {
     }
 
     fn pop(&mut self) -> UserAction {
-        if self.inner.len() > 1 {
-            self.inner.pop().unwrap()
-        } else {
-            Self::START_ACTION
-        }
+        self.inner.pop().unwrap_or(Self::START_ACTION)
     }
 
-    #[allow(dead_code)]
     fn clear(&mut self) {
         self.inner.clear();
-        self.inner.push(Self::START_ACTION);
     }
 
     fn current(&self) -> &UserAction {
-        self.inner.last().unwrap()
+        self.inner.last().unwrap_or(&Self::START_ACTION)
     }
 }
 
