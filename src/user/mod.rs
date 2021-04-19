@@ -1,3 +1,5 @@
+pub mod rust;
+
 use crate::parser::{self, NixNode};
 
 use std::{collections::HashMap, io::Cursor, str::FromStr};
