@@ -93,8 +93,7 @@ fn search_for_attr(
 
     let mut result = Vec::new();
 
-    while !stack.is_empty() {
-        let (cur_node, mut path, cur_depth) = stack.pop().unwrap();
+    while let Some((cur_node, mut path, cur_depth)) = stack.pop() {
         let cur_node_value = cur_node.value().unwrap();
         let cur_node_key = cur_node.key().unwrap();
 
