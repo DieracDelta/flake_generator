@@ -8,6 +8,8 @@ use parse_display::{Display, FromStr};
 use skim::prelude::*;
 use smol_str::SmolStr;
 
+/// `SmlStr` wraps [`SmolStr`] to additionally provide a [`FromStr`] implementation.
+/// Can be removed after https://github.com/rust-analyzer/smol_str/issues/31 is fixed.
 #[derive(Debug, Default, Clone, PartialEq, Eq, Display)]
 pub struct SmlStr(pub SmolStr);
 
