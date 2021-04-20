@@ -98,7 +98,8 @@ impl UserMetadata {
                 UserAction::ModifyExisting | UserAction::Rust(rust::Action::SetIcon)
             ),
         )?;
-        Ok(UserPrompt::from_str(&input).unwrap())
+        Ok(UserPrompt::from_str(&input)
+            .expect("could not make prompt; this should be impossible, please file a bug report"))
     }
 }
 
