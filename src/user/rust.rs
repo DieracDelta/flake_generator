@@ -53,9 +53,9 @@ pub(crate) enum Prompt {
     ChooseLicense(SmlStr),
 }
 
-impl Into<UserPrompt> for Prompt {
-    fn into(self) -> UserPrompt {
-        UserPrompt::Rust(self)
+impl From<Prompt> for UserPrompt {
+    fn from(x: Prompt) -> UserPrompt {
+        UserPrompt::Rust(x)
     }
 }
 
@@ -155,9 +155,9 @@ pub(crate) enum Action {
     SetCachixName,
 }
 
-impl Into<UserAction> for Action {
-    fn into(self) -> UserAction {
-        UserAction::Rust(self)
+impl From<Action> for UserAction {
+    fn from(x: Action) -> UserAction {
+        UserAction::Rust(x)
     }
 }
 
