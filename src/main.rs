@@ -58,7 +58,10 @@ fn main() {
                 action_stack.pop();
             }
             UserPrompt::Exit => break,
-            UserPrompt::StartOver => action_stack.clear(),
+            UserPrompt::StartOver => {
+                user_data = UserMetadata::default();
+                action_stack.clear();
+            }
             UserPrompt::Create => action_stack.push(UserAction::CreateNew),
             UserPrompt::Modify => action_stack.push(UserAction::ModifyExisting),
             UserPrompt::DeleteInput => action_stack.push(UserAction::RemoveInput),
