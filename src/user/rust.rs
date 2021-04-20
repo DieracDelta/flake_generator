@@ -225,10 +225,11 @@ impl Action {
                 .into(),
                 Prompt::SetPackageName(user_data.rust_options.package_name.as_ref().map_or_else(
                     || {
-                        std::path::Path::new("./Cargo.toml")
-                            .exists()
-                            .then(|| SmlStr::new_inline("not set"))
-                            .unwrap_or_else(|| SmlStr::new_inline("not set, required"))
+                        SmlStr::new_inline(if std::path::Path::new("./Cargo.toml").exists() {
+                            "not set"
+                        } else {
+                            "not set, required"
+                        })
                     },
                     Into::into,
                 ))
