@@ -89,11 +89,8 @@ impl UserMetadata {
 
     pub(crate) fn get_user_prompt(&mut self, a: &UserAction) -> anyhow::Result<UserPrompt> {
         let input = query_user_input(
-            a.to_string().lines().map(str::to_string).collect(),
-            self.get_prompt_items(a)
-                .into_iter()
-                .map(|p| p.to_string())
-                .collect(),
+            a.to_string().lines(),
+            self.get_prompt_items(a).into_iter(),
             matches!(
                 a,
                 UserAction::ModifyExisting | UserAction::Rust(rust::Action::SetIcon)
@@ -167,21 +164,29 @@ pub(crate) enum Lang {
     JavaScript,
 }
 
-pub(crate) fn query_user_input(
-    prompt: Vec<String>,
-    items: Vec<String>,
+pub(crate) fn query_user_input<'a, PI, II>(
+    prompt: PI,
+    items: II,
     files: bool,
-) -> anyhow::Result<String> {
-    let header_len = prompt.len();
-
-    let agg = |x: Vec<String>| -> String {
-        x.into_iter().rev().fold(String::new(), |mut acc, ele| {
-            acc.push('\n');
-            acc.push_str(&ele);
+) -> anyhow::Result<String>
+where
+    PI: Iterator<Item = &'a str> + DoubleEndedIterator,
+    II: Iterator<Item = UserPrompt> + DoubleEndedIterator,
+{
+    fn agg<I>(x: I) -> (usize, String)
+    where
+        I: Iterator + DoubleEndedIterator,
+        I::Item: AsRef<str>,
+    {
+        x.rev().fold((0, String::new()), |mut acc, ele| {
+            acc.0 += 1;
+            acc.1.push('\n');
+            acc.1.push_str(ele.as_ref());
             acc
         })
-    };
-    let agg_prompt = agg(prompt);
+    }
+
+    let (header_len, agg_prompt) = agg(prompt);
 
     let options = SkimOptionsBuilder::default()
         .header(Some(&agg_prompt))
@@ -193,7 +198,8 @@ pub(crate) fn query_user_input(
         .expect("failed to build skim options: something is very wrong");
 
     let item_reader = SkimItemReader::default();
-    let items = (!files).then(|| item_reader.of_bufread(Cursor::new(agg(items))));
+    let items =
+        (!files).then(|| item_reader.of_bufread(Cursor::new(agg(items.map(|i| i.to_string())).1)));
 
     let result = Skim::run_with(&options, items).expect("skim failed: something is very wrong");
     Ok(result
