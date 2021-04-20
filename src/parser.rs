@@ -19,11 +19,12 @@ pub fn kill_node(node: &NixNode) -> Result<NixNode, String> {
     Ok(Root::cast(new_root).unwrap().inner().unwrap())
 }
 
-/// what should be done is:
 /// Precondition: node is a attribute and parent is an attribute set
 /// (1) get parent attrset
-/// (2) iterate through children nodes, searching for node
+/// (2) iterate through parent's children nodes, searching for node to delete
 /// (4) return a modified tree with node deleted
+/// if child node is not found in parent, something is very wrong
+/// so error out/fail, and not in a graceful manner
 pub fn kill_node_attribute(node: &NixNode) -> Result<NixNode, String> {
     let parent = node.parent().unwrap();
     match parent.kind() {
@@ -32,21 +33,18 @@ pub fn kill_node_attribute(node: &NixNode) -> Result<NixNode, String> {
                 .green()
                 .children()
                 .enumerate()
-                // TODO better error handling
                 .filter_map(|(idx, val)| {
+                    // the '.to_owned()' is required to turn GreenNodeData into GreenNode
+                    // because GreenNodeData doesn't implement PartialEq
                     val.into_node().and_then(|inner_node| {
-                        // the '.to_owned()' is required to turn GreenNodeData into GreenNode
-                        // because GreenNodeData doesn't implement PartialEq
-                        if *inner_node == node.green().to_owned() {
-                            Some(idx)
-                        } else {
-                            None
-                        }
+                        (*inner_node == node.green().to_owned()).then(|| idx)
                     })
                 })
-                // TODO is this really what we want
                 .last()
-                .unwrap_or(0);
+                .ok_or(Err::<NixNode, String>(
+                    "node not in parent tree".to_string(),
+                ))
+                .unwrap();
             let new_parent = parent.green().remove_child(idx);
             let mut new_root = NixNode::new_root(parent.replace_with(new_parent));
             while let Some(parent) = new_root.parent() {
@@ -55,11 +53,11 @@ pub fn kill_node_attribute(node: &NixNode) -> Result<NixNode, String> {
             let tmp = Root::cast(new_root).unwrap();
             Ok(tmp.inner().unwrap())
         }
-        // ??? variable `NODE_STR` should have a snake case name
-        _ => unimplemented!(),
+        _ => Err("Precondition violated: parent was not attribute set.".to_string()),
     }
 }
 
+/// converts a AST node to a string.
 fn get_str_val(node: &NixNode) -> Result<String, String> {
     Ok(Str::cast(node.clone()).unwrap().parts().iter().fold(
         String::new(),
@@ -75,6 +73,17 @@ fn get_str_val(node: &NixNode) -> Result<String, String> {
     ))
 }
 
+/// given an attribute name, searches to max_depth
+/// for the given attribute name
+/// it is assumed that the node's max depth >= exact_depth
+/// and root_node is of type attrset
+/// returns a vector of tuples that match
+/// (matching_node, path, depth)
+/// Example: searching for `foo`
+/// ```
+/// "{\"foo\": \"bar\"}"
+/// ```
+/// Will return [bar_node, "foo", 1]
 fn search_for_attr(
     attr: String,
     max_depth: usize,
@@ -85,10 +94,7 @@ fn search_for_attr(
     // TODO if it's not, we should fail louder
     let mut stack = match AttrSet::cast((*root_node).clone()) {
         Some(rn) => rn.entries().map(|x| (x, String::new(), 0)).collect(),
-        None => {
-            println!("failed to convert!");
-            Vec::new()
-        }
+        None => Vec::new(),
     };
 
     let mut result = Vec::new();
@@ -131,17 +137,16 @@ fn search_for_attr(
                             .map(|entry| (entry, path.clone(), real_depth)),
                     );
                 }
-                NODE_STRING => {
-                    // TODO this should morally speaking *actually* fail
-                    dbg!("nothing fail");
-                }
-                _kind => (), // dbg!("other kind: {:?}", _kind)
+                _kind => (),
             }
         }
     }
     Ok(result)
 }
 
+/// searches AST for input nodes
+/// returns hashmap of value to node
+/// for example { "github.com/foo/bar": Node(FooBar)}
 pub fn get_inputs(root: &NixNode) -> HashMap<String, NixNode> {
     search_for_attr("inputs".to_string(), 1, root, None)
         .unwrap()
@@ -149,36 +154,29 @@ pub fn get_inputs(root: &NixNode) -> HashMap<String, NixNode> {
         .flat_map(|(ele, _attribute_path, depth)| {
             const EXPECTED_DEPTH: usize = 3;
             match ele.kind() {
-                // edge case of entire attribute set at once. E.g. inputs.nixpkgs.url =
+                // edge case of entire attribute set at once. E.g. inputs.nixpkgs.url = "foo";
                 NODE_STRING => {
                     if depth == EXPECTED_DEPTH {
-                        let result = Str::cast(ele.clone()).unwrap().parts().iter().fold(
-                            String::new(),
-                            |mut i_acc, i_ele| {
-                                if let StrPart::Literal(s) = i_ele {
-                                    i_acc.push_str(s)
-                                }
-                                i_acc
-                            },
-                        );
-                        vec![(result, ele)]
+                        vec![(get_str_val(&ele).unwrap(), ele)]
                     } else {
                         vec![]
                     }
                 }
+                // common case of { nixpkgs = { url = "foo"; }; }
                 NODE_ATTR_SET => search_for_attr("url".to_string(), 2, &ele, None)
                     .unwrap()
                     .into_iter()
                     .filter_map(|(n_ele, _n_node, n_depth)| {
-                        if depth + n_depth == EXPECTED_DEPTH {
-                            Some((get_str_val(&n_ele).unwrap(), n_ele))
-                        } else {
-                            None
-                        }
+                        (depth + n_depth == EXPECTED_DEPTH)
+                            .then(|| (get_str_val(&n_ele).unwrap(), n_ele))
                     })
                     .collect(),
                 _ => vec![],
             }
         })
         .collect()
+}
+
+pub fn remove_fn_arg(root: &NixNode) -> Result<NixNode, String> {
+    unimplemented!();
 }
