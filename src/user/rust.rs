@@ -64,7 +64,6 @@ impl Prompt {
         &self,
         action_stack: &mut ActionStack,
         user_data: &mut UserMetadata,
-        _cur_action: &UserAction,
     ) {
         let act = match self {
             Prompt::Generate => match run_with_options(user_data.rust_options.clone(), false) {

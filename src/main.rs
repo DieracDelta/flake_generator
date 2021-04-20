@@ -71,8 +71,7 @@ fn main() {
                 lang => todo!("lang {}", lang),
             },
             UserPrompt::Rust(prompt) => {
-                let cur_action = cur_action.clone();
-                prompt.process_prompt(&mut action_stack, &mut user_data, &cur_action);
+                prompt.process_prompt(&mut action_stack, &mut user_data);
             }
             UserPrompt::Other(other) => {
                 match cur_action {
