@@ -167,20 +167,13 @@ impl Action {
             |opt: Option<&String>| opt.map_or_else(|| SmlStr::new_inline("not set"), Into::into);
         match self {
             Action::Intro => vec![
-                Prompt::SetSystems(user_data.rust_options.package_systems.as_ref().map_or_else(
-                    String::new,
-                    |sys| {
-                        let mut str = String::with_capacity(
-                            sys.iter().map(String::len).sum::<usize>() + sys.len(),
-                        );
-                        sys.into_iter().for_each(|s| {
-                            str.push_str(s);
-                            str.push(' ');
-                        });
-                        str.pop();
-                        str
-                    },
-                ))
+                Prompt::SetSystems(
+                    user_data
+                        .rust_options
+                        .package_systems
+                        .as_ref()
+                        .map_or_else(String::new, |sys| sys.join(" ")),
+                )
                 .into(),
                 Prompt::SetCachixKey(map_or_def(
                     user_data.rust_options.cachix_public_key.as_ref(),
