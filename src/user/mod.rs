@@ -19,9 +19,9 @@ impl SmlStr {
     }
 }
 
-impl Into<String> for SmlStr {
-    fn into(self) -> String {
-        self.0.into()
+impl From<SmlStr> for String {
+    fn from(x: SmlStr) -> String {
+        x.0.into()
     }
 }
 
