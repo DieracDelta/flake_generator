@@ -29,7 +29,7 @@ pub fn kill_node_attribute(node: &NixNode) -> Result<NixNode, String> {
     let parent = node.parent().unwrap();
     match parent.kind() {
         NODE_ATTR_SET => {
-            let idx = parent
+            let idxs = parent
                 .green()
                 .children()
                 .enumerate()
@@ -40,9 +40,13 @@ pub fn kill_node_attribute(node: &NixNode) -> Result<NixNode, String> {
                         (*inner_node == node.green().to_owned()).then(|| idx)
                     })
                 })
-                .last()
-                .expect("node not in parent tree");
-            let new_parent = parent.green().remove_child(idx);
+                .collect::<Vec<_>>();
+            // only one child node should match
+            assert!(
+                idxs.len() == 1,
+                "AST in inconsistent state. Node not in parent tree."
+            );
+            let new_parent = parent.green().remove_child(*idxs.last().unwrap());
             let mut new_root = NixNode::new_root(parent.replace_with(new_parent));
             while let Some(parent) = new_root.parent() {
                 new_root = parent;
