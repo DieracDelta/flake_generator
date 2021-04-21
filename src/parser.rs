@@ -41,10 +41,7 @@ pub fn kill_node_attribute(node: &NixNode) -> Result<NixNode, String> {
                     })
                 })
                 .last()
-                .ok_or(Err::<NixNode, String>(
-                    "node not in parent tree".to_string(),
-                ))
-                .unwrap();
+                .expect("node not in parent tree");
             let new_parent = parent.green().remove_child(idx);
             let mut new_root = NixNode::new_root(parent.replace_with(new_parent));
             while let Some(parent) = new_root.parent() {
@@ -177,6 +174,17 @@ pub fn get_inputs(root: &NixNode) -> HashMap<String, NixNode> {
         .collect()
 }
 
-pub fn remove_fn_arg(root: &NixNode) -> Result<NixNode, String> {
+/// remove string from argument list
+pub fn remove_fn_arg(argument_list: &NixNode, input: &String) -> Result<NixNode, String> {
+    unimplemented!();
+}
+
+/// remove input node from outputs
+/// if it's listed
+pub fn remove_input_from_output(root: &NixNode, input: &NixNode) -> Result<NixNode, String> {
+    if let Ok(output_node) = search_for_attr("outputs".to_string(), 1, root, None) {
+        println!("output_node {:?}", output_node);
+    }
+
     unimplemented!();
 }
