@@ -179,16 +179,26 @@ pub fn get_inputs(root: &NixNode) -> HashMap<String, NixNode> {
         .collect()
 }
 
-/// remove string from argument list
-pub fn remove_fn_arg(argument_list: &NixNode, input: &String) -> Result<NixNode, String> {
-    unimplemented!();
-}
-
 /// remove input node from outputs
 /// if it's listed
-pub fn remove_input_from_output(root: &NixNode, input: &NixNode) -> Result<NixNode, String> {
-    if let Ok(output_node) = search_for_attr("outputs".to_string(), 1, root, None) {
-        println!("output_node {:?}", output_node);
+pub fn remove_input_from_output_fn(root: &NixNode, input_name: &str) -> Result<NixNode, String> {
+    if let Ok(output_node) = search_for_attr("outputs".to_string(), 2, root, None) {
+        assert!(output_node.len() == 1);
+        let output_fn_node = Lambda::cast(output_node.get(0).unwrap().0.clone()).unwrap();
+        if let Some(args) = output_fn_node.arg() {
+            match args.kind() {
+                NODE_IDENT => return Ok(root.clone()),
+                NODE_PATTERN => {
+                    // TODO once rnix implements filter_entries, use that.
+                    Pattern::cast(args).unwrap().entries().for_each(|val| {
+                        println!("{:?}", val);
+                    });
+                }
+                _ => unimplemented!(),
+            }
+        }
+    } else {
+        return Err("Function does not have outputs.".to_string());
     }
 
     unimplemented!();

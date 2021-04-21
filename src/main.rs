@@ -3,7 +3,7 @@ mod user;
 
 use std::fs;
 
-use parser::kill_node_attribute;
+use parser::{kill_node_attribute, remove_input_from_output_fn};
 use rnix::types::*;
 use user::*;
 
@@ -113,11 +113,12 @@ fn main() {
                         action_stack.push(UserAction::IntroParsed);
                     }
                     UserAction::RemoveInput => {
+                        let dead_node_name = other.0.as_str();
                         let dead_node = &user_data
                             .inputs
                             .clone()
                             .unwrap()
-                            .get(other.0.as_str())
+                            .get(dead_node_name)
                             .unwrap()
                             .parent()
                             .unwrap();
@@ -132,6 +133,10 @@ fn main() {
                             }
                         };
                         user_data.new_root(new_root);
+                        remove_input_from_output_fn(
+                            &mut (user_data.root.clone().unwrap()),
+                            dead_node_name,
+                        );
                         println!("{}", user_data.root.as_ref().unwrap().to_string());
                         // TODO better error handling
                         //root.unwrap():
