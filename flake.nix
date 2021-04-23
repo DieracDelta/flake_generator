@@ -7,7 +7,7 @@
     };
   };
 
-  outputs = inputs: inputs.nixCargoIntegration.lib.makeOutputs {
+  outputs = inputs@{nixpkgs, nixCargoIntegration, ...}: inputs.nixCargoIntegration.lib.makeOutputs {
     root = ./.;
     overrides = {
       common = prev: {
