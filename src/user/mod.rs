@@ -45,7 +45,7 @@ impl FromStr for SmlStr {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub(crate) struct UserMetadata {
     pub(crate) root: Option<NixNode>,
     pub(crate) inputs: Option<HashMap<String, (String, NixNode)>>,

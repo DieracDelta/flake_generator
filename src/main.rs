@@ -2,6 +2,7 @@ mod parser;
 mod user;
 
 use std::fs;
+use std::io::Write;
 
 use parser::{get_attr, kill_node_attribute, remove_input_from_output_fn};
 use rnix::types::*;
@@ -81,8 +82,13 @@ fn main() {
                             .process_action(other, &mut action_stack, &mut user_data)
                     }
                     UserAction::ModifyExisting => {
-                        let content = match fs::read_to_string(other.0.as_str()) {
-                            Ok(content) => content,
+                        let filename = other.0.as_str();
+                        let content = match fs::read_to_string(filename) {
+                            Ok(content) => {
+                                // TODO setter
+                                user_data.filename = Some(filename.to_string());
+                                content
+                            }
                             Err(err) => {
                                 const IS_DIRECTORY_ERRNO: i32 = 21;
                                 let err_msg = if let Some(IS_DIRECTORY_ERRNO) = err.raw_os_error() {
@@ -116,7 +122,7 @@ fn main() {
                         let dead_node_path = other.0.as_str();
                         let inputs = user_data.inputs.clone().unwrap();
                         let (dead_node_name, dead_node) = inputs.get(dead_node_path).unwrap();
-                        let new_root = match kill_node_attribute(&dead_node.parent().unwrap()) {
+                        let new_root = match kill_node_attribute(&dead_node.parent().unwrap(), 1) {
                             Ok(node) => node,
                             Err(err) => {
                                 action_stack.push(UserAction::Error(format!(
@@ -129,12 +135,26 @@ fn main() {
                         user_data.new_root(new_root);
                         let input_name = get_attr(1, dead_node_name).unwrap();
 
-                        remove_input_from_output_fn(
-                            &mut (user_data.root.clone().unwrap()),
-                            &input_name,
+                        user_data.new_root(
+                            remove_input_from_output_fn(
+                                &mut (user_data.root.clone().unwrap()),
+                                &input_name,
+                            )
+                            .unwrap(),
                         );
-                        println!("{}", user_data.root.as_ref().unwrap().to_string());
+                        // TODO separate out into function
+                        let stringified = user_data.root.as_ref().unwrap().to_string();
+                        let mut file = fs::OpenOptions::new()
+                            .write(true)
+                            .truncate(true)
+                            .open(user_data.clone().filename.unwrap())
+                            .unwrap();
+                        file.write(stringified.as_bytes()).unwrap();
+
                         // TODO better error handling
+                        // TODO separate inputs out into a struct
+                        // TODO add in a "write to file" option at the end instead of
+                        // intermittently
                         //root.unwrap():
                         action_stack.push(UserAction::IntroParsed);
                     }

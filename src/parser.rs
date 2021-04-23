@@ -25,10 +25,10 @@ pub fn kill_node(node: &NixNode) -> Result<NixNode, String> {
 /// (4) return a modified tree with node deleted
 /// if child node is not found in parent, something is very wrong
 /// so error out/fail, and not in a graceful manner
-pub fn kill_node_attribute(node: &NixNode) -> Result<NixNode, String> {
+pub fn kill_node_attribute(node: &NixNode, amount: usize) -> Result<NixNode, String> {
     let parent = node.parent().unwrap();
     match parent.kind() {
-        NODE_ATTR_SET => {
+        NODE_ATTR_SET | NODE_PATTERN => {
             let mut child_node_idxs =
                 parent
                     .green()
@@ -47,8 +47,27 @@ pub fn kill_node_attribute(node: &NixNode) -> Result<NixNode, String> {
                 child_node_idxs.next().is_none(),
                 "AST in inconsistent state. Child found multiple times in parent tree."
             );
-            let new_parent = parent.green().remove_child(idx);
-            let mut new_root = NixNode::new_root(parent.replace_with(new_parent));
+            let mut new_parent = node.parent().unwrap();
+            let mut new_parent_green = new_parent.green().to_owned();
+            for i in idx..(idx + amount) {
+                let mut j = i;
+                loop {
+                    let tmptmp = new_parent_green.children().nth(j).unwrap();
+                    let tmp_child = tmptmp.as_token();
+                    if tmp_child.is_none() {
+                        break;
+                    }
+
+                    let tmp_child_text = tmp_child.unwrap().text();
+                    if tmp_child_text.split_whitespace().next().is_none() {
+                        j += 1;
+                    } else {
+                        break;
+                    }
+                }
+                new_parent_green = new_parent_green.remove_child(j).to_owned();
+            }
+            let mut new_root = NixNode::new_root(parent.replace_with(new_parent_green));
             while let Some(parent) = new_root.parent() {
                 new_root = parent;
             }
@@ -191,26 +210,31 @@ pub fn remove_input_from_output_fn(root: &NixNode, input_name: &str) -> Result<N
                 NODE_IDENT => return Ok(root.clone()),
                 NODE_PATTERN => {
                     // TODO once rnix implements filter_entries, use that.
-                    let mut arg_nodes = Pattern::cast(args)
-                        .unwrap()
-                        .entries()
-                        .filter(|val| val.name().unwrap().as_str() == input_name);
-                    let mut arg_node = arg_nodes.next().unwrap();
+                    let mut arg_nodes = Pattern::cast(args).unwrap().entries().collect::<Vec<_>>();
+                    let arg_nodes_size = arg_nodes.len();
+                    if (arg_nodes_size == 0) {
+                        return Ok((*root).clone());
+                    }
+                    let mut matching_arg_nodes = arg_nodes
+                        .iter()
+                        .enumerate()
+                        .filter(|(_idx, val)| val.name().unwrap().as_str() == input_name);
+                    let (arg_node_idx, mut arg_node) = matching_arg_nodes.next().unwrap();
                     assert!(
-                        arg_nodes.next().is_none(),
+                        matching_arg_nodes.next().is_none(),
                         "Two of the same argument found. Error out!"
                     );
-
-                    println!("arg node: {:?}", arg_node.name().unwrap().as_str());
+                    let kill_comma = if arg_node_idx < arg_nodes_size { 2 } else { 1 };
+                    kill_node_attribute(arg_node.node(), 2)
                 }
                 _ => unimplemented!(),
             }
+        } else {
+            Ok((*root).clone())
         }
     } else {
         return Err("Function does not have outputs.".to_string());
     }
-
-    unimplemented!();
 }
 
 pub fn get_attr(depth: usize, full_path: &str) -> Option<&str> {
