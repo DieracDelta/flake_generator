@@ -149,17 +149,17 @@ fn search_for_attr(
 /// searches AST for input nodes
 /// returns hashmap of value to node
 /// for example { "github.com/foo/bar": Node(FooBar)}
-pub fn get_inputs(root: &NixNode) -> HashMap<String, NixNode> {
+pub fn get_inputs(root: &NixNode) -> HashMap<String, (String, NixNode)> {
     search_for_attr("inputs".to_string(), 1, root, None)
         .unwrap()
         .into_iter()
-        .flat_map(|(ele, _attribute_path, depth)| {
+        .flat_map(|(ele, attribute_path, depth)| {
             const EXPECTED_DEPTH: usize = 3;
             match ele.kind() {
                 // edge case of entire attribute set at once. E.g. inputs.nixpkgs.url = "foo";
                 NODE_STRING => {
                     if depth == EXPECTED_DEPTH {
-                        vec![(get_str_val(&ele).unwrap(), ele)]
+                        vec![(get_str_val(&ele).unwrap(), (attribute_path, ele))]
                     } else {
                         vec![]
                     }
@@ -168,9 +168,9 @@ pub fn get_inputs(root: &NixNode) -> HashMap<String, NixNode> {
                 NODE_ATTR_SET => search_for_attr("url".to_string(), 2, &ele, None)
                     .unwrap()
                     .into_iter()
-                    .filter_map(|(n_ele, _n_node, n_depth)| {
+                    .filter_map(|(n_ele, n_node, n_depth)| {
                         (depth + n_depth == EXPECTED_DEPTH)
-                            .then(|| (get_str_val(&n_ele).unwrap(), n_ele))
+                            .then(|| (get_str_val(&n_ele).unwrap(), (n_node, n_ele)))
                     })
                     .collect(),
                 _ => vec![],
@@ -182,6 +182,7 @@ pub fn get_inputs(root: &NixNode) -> HashMap<String, NixNode> {
 /// remove input node from outputs
 /// if it's listed
 pub fn remove_input_from_output_fn(root: &NixNode, input_name: &str) -> Result<NixNode, String> {
+    println!("input name: {:?}", input_name);
     if let Ok(output_node) = search_for_attr("outputs".to_string(), 2, root, None) {
         assert!(output_node.len() == 1);
         let output_fn_node = Lambda::cast(output_node.get(0).unwrap().0.clone()).unwrap();
@@ -190,9 +191,17 @@ pub fn remove_input_from_output_fn(root: &NixNode, input_name: &str) -> Result<N
                 NODE_IDENT => return Ok(root.clone()),
                 NODE_PATTERN => {
                     // TODO once rnix implements filter_entries, use that.
-                    Pattern::cast(args).unwrap().entries().for_each(|val| {
-                        println!("{:?}", val);
-                    });
+                    let mut arg_nodes = Pattern::cast(args)
+                        .unwrap()
+                        .entries()
+                        .filter(|val| val.name().unwrap().as_str() == input_name);
+                    let mut arg_node = arg_nodes.next().unwrap();
+                    assert!(
+                        arg_nodes.next().is_none(),
+                        "Two of the same argument found. Error out!"
+                    );
+
+                    println!("arg node: {:?}", arg_node.name().unwrap().as_str());
                 }
                 _ => unimplemented!(),
             }
@@ -202,4 +211,8 @@ pub fn remove_input_from_output_fn(root: &NixNode, input_name: &str) -> Result<N
     }
 
     unimplemented!();
+}
+
+pub fn get_attr(depth: usize, full_path: &str) -> Option<&str> {
+    full_path.split('.').rev().nth(depth)
 }
