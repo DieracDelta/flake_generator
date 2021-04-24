@@ -53,12 +53,12 @@ pub fn kill_node_attribute(node: &NixNode, amount: usize) -> Result<NixNode, Str
                 let mut j = i;
                 loop {
                     let tmptmp = new_parent_green.children().nth(j).unwrap();
-                    let tmp_child = tmptmp.as_token();
-                    if tmp_child.is_none() {
-                        break;
-                    }
 
-                    let tmp_child_text = tmp_child.unwrap().text();
+                    let tmp_child_text = match tmptmp.as_token() {
+                        Some(x) => x.text(),
+                        None => break,
+                    };
+
                     if tmp_child_text.split_whitespace().next().is_none() {
                         j += 1;
                     } else {
@@ -210,21 +210,31 @@ pub fn remove_input_from_output_fn(root: &NixNode, input_name: &str) -> Result<N
                 NODE_IDENT => return Ok(root.clone()),
                 NODE_PATTERN => {
                     // TODO once rnix implements filter_entries, use that.
-                    let mut arg_nodes = Pattern::cast(args).unwrap().entries().collect::<Vec<_>>();
+                    let fn_args = Pattern::cast(args).unwrap();
+                    let mut arg_nodes = fn_args.entries().collect::<Vec<_>>();
                     let arg_nodes_size = arg_nodes.len();
-                    if (arg_nodes_size == 0) {
+                    if arg_nodes.is_empty() {
                         return Ok((*root).clone());
                     }
                     let mut matching_arg_nodes = arg_nodes
                         .iter()
                         .enumerate()
                         .filter(|(_idx, val)| val.name().unwrap().as_str() == input_name);
+                    dbg!(input_name);
                     let (arg_node_idx, mut arg_node) = matching_arg_nodes.next().unwrap();
                     assert!(
                         matching_arg_nodes.next().is_none(),
                         "Two of the same argument found. Error out!"
                     );
-                    let kill_comma = if arg_node_idx < arg_nodes_size { 2 } else { 1 };
+                    println!("indx: {:?}", arg_node_idx);
+                    let kill_comma = if arg_node_idx < arg_nodes_size
+                        || ((arg_node_idx == arg_nodes_size) && fn_args.ellipsis())
+                    {
+                        println!("killing the comma!");
+                        2
+                    } else {
+                        1
+                    };
                     kill_node_attribute(arg_node.node(), 2)
                 }
                 _ => unimplemented!(),

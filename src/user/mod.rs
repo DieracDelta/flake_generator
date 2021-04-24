@@ -1,6 +1,6 @@
 pub mod rust;
 
-use crate::parser::{self, NixNode};
+use crate::parser::parser_utils::{self, get_inputs, NixNode};
 
 use std::{collections::HashMap, io::Cursor, str::FromStr};
 
@@ -62,7 +62,7 @@ impl UserMetadata {
     fn ensure_inputs(&mut self) -> &mut HashMap<String, (String, NixNode)> {
         let root_ref = self.root.as_ref();
         self.inputs
-            .get_or_insert_with(|| parser::get_inputs(root_ref.unwrap()))
+            .get_or_insert_with(|| get_inputs(root_ref.unwrap()))
     }
 
     pub(crate) fn get_prompt_items(&mut self, action: &UserAction) -> Vec<UserPrompt> {
