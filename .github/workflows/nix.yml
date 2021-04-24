@@ -29,7 +29,6 @@ jobs:
       run: |
         nix build .#flake_generator-debug -L --show-trace
         nix build .#flake_generator -L --show-trace
-        nix build .#checks.x86_64-linux.flake_generator-tests -L --show-trace
     - name: Run tests
       run: |
         nix flake check -L --show-trace
