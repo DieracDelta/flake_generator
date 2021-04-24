@@ -79,8 +79,10 @@ impl UserMetadata {
             UserAction::RemoveInput => {
                 // check cache
                 self.ensure_inputs()
-                    .keys()
-                    .map(|s| UserPrompt::from_str(s).unwrap())
+                    .iter()
+                    .map(|(attribute, value)| {
+                        UserPrompt::from_str(&format!("{}: {}", attribute, value.0)).unwrap()
+                    })
                     .chain(std::iter::once(UserPrompt::Back))
                     .collect()
             }

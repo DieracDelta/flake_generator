@@ -164,7 +164,7 @@ pub fn get_inputs(root: &NixNode) -> HashMap<String, (String, NixNode)> {
                 // edge case of entire attribute set at once. E.g. inputs.nixpkgs.url = "foo";
                 NODE_STRING => {
                     if depth == EXPECTED_DEPTH {
-                        vec![(get_str_val(&ele), (attribute_path, ele))]
+                        vec![(attribute_path, (get_str_val(&ele), ele))]
                     } else {
                         vec![]
                     }
@@ -172,9 +172,9 @@ pub fn get_inputs(root: &NixNode) -> HashMap<String, (String, NixNode)> {
                 // common case of { nixpkgs = { url = "foo"; }; }
                 NODE_ATTR_SET => search_for_attr("url".to_string(), 2, &ele, None)
                     .into_iter()
-                    .filter_map(|(n_ele, n_node, n_depth)| {
+                    .filter_map(|(n_ele, path, n_depth)| {
                         (depth + n_depth == EXPECTED_DEPTH)
-                            .then(|| (get_str_val(&n_ele), (n_node, n_ele)))
+                            .then(|| (path, (get_str_val(&n_ele), n_ele)))
                     })
                     .collect(),
                 _ => vec![],
@@ -227,6 +227,10 @@ pub fn remove_input_from_output_fn(root: &NixNode, input_name: &str) -> Result<N
     } else {
         Ok((*root).clone())
     }
+}
+
+pub fn remove_input(root: &NixNode, input_name: &str) -> Result<NixNode, String> {
+    unimplemented!();
 }
 
 pub fn get_attr(depth: usize, full_path: &str) -> Option<&str> {
