@@ -65,7 +65,7 @@ pub fn kill_node_attribute(node: &NixNode, amount: usize) -> Result<NixNode, Str
 }
 
 /// converts a AST node to a string.
-fn get_str_val(node: &NixNode) -> String {
+pub fn node_to_string(node: &NixNode) -> String {
     Str::cast(node.clone())
         .unwrap()
         .parts()
@@ -79,6 +79,16 @@ fn get_str_val(node: &NixNode) -> String {
                 StrPart::Ast(_) => unimplemented!(),
             }
         })
+}
+
+pub fn string_to_node(content: String) -> Result<NixNode, String> {
+    let ast = match rnix::parse(&content).as_result() {
+        Ok(parsed) => parsed,
+        Err(err) => {
+            return Err(format!("could not parse as a nix file: {}", err));
+        }
+    };
+    Ok(ast.root().inner().unwrap())
 }
 
 /// given an attribute name, searches to max_depth
@@ -165,7 +175,7 @@ pub fn get_inputs(root: &NixNode) -> HashMap<String, (String, NixNode)> {
                 // edge case of entire attribute set at once. E.g. inputs.nixpkgs.url = "foo";
                 NODE_STRING => {
                     if depth == EXPECTED_DEPTH {
-                        vec![(attribute_path, (get_str_val(&ele), ele))]
+                        vec![(attribute_path, (node_to_string(&ele), ele))]
                     } else {
                         vec![]
                     }
@@ -177,7 +187,7 @@ pub fn get_inputs(root: &NixNode) -> HashMap<String, (String, NixNode)> {
                         (depth + n_depth == EXPECTED_DEPTH).then(|| {
                             (
                                 format!("{}{}", attribute_path, path),
-                                (get_str_val(&n_ele), n_ele),
+                                (node_to_string(&n_ele), n_ele),
                             )
                         })
                     })
@@ -186,6 +196,17 @@ pub fn get_inputs(root: &NixNode) -> HashMap<String, (String, NixNode)> {
             }
         })
         .collect()
+}
+
+pub fn get_output_node(root: &NixNode) -> Result<Lambda, String> {
+    Ok(Lambda::cast(
+        search_for_attr("outputs".to_string(), 2, root, None)
+            .get(0)
+            .unwrap()
+            .clone()
+            .0,
+    )
+    .unwrap())
 }
 
 /// remove input node from outputs
@@ -239,12 +260,10 @@ pub fn remove_input(
     dead_node_name: &str,
     user_inputs: Option<HashMap<String, (String, NixNode)>>,
 ) -> Result<NixNode, String> {
-    // we're retrieving in the inputs again which isn't great..
     let inputs = match user_inputs {
         Some(inputs) => inputs,
         None => get_inputs(root),
     };
-    //remove_input(user_data.root.unwrap(), dead_node_name);
     let (_, dead_node) = inputs.get(dead_node_name).unwrap();
     let new_root = match kill_node_attribute(&dead_node.parent().unwrap(), 1) {
         Ok(node) => node,
