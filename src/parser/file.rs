@@ -1,18 +1,8 @@
-use crate::parser::parser_utils::NixNode;
+use crate::parser::parser_utils::{string_to_node, NixNode};
 use crate::user::{SmlStr, UserMetadata};
 use rnix::types::*;
 use std::fs;
 use std::io::Write;
-
-pub fn string_to_node(content: String) -> Result<NixNode, String> {
-    let ast = match rnix::parse(&content).as_result() {
-        Ok(parsed) => parsed,
-        Err(err) => {
-            return Err(format!("could not parse as a nix file: {}", err));
-        }
-    };
-    Ok(ast.root().inner().unwrap())
-}
 
 // TODO shouldn't we be concatenating the filename to the absolute path?
 pub fn filename_to_node(filename: &str, full_path: &SmlStr) -> Result<NixNode, String> {
