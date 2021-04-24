@@ -234,8 +234,25 @@ pub fn remove_input_from_output_fn(root: &NixNode, input_name: &str) -> Result<N
     }
 }
 
-pub fn remove_input(root: &NixNode, input_name: &str) -> Result<NixNode, String> {
-    unimplemented!();
+pub fn remove_input(
+    root: &NixNode,
+    dead_node_name: &str,
+    user_inputs: Option<HashMap<String, (String, NixNode)>>,
+) -> Result<NixNode, String> {
+    // we're retrieving in the inputs again which isn't great..
+    let inputs = match user_inputs {
+        Some(inputs) => inputs,
+        None => get_inputs(root),
+    };
+    //remove_input(user_data.root.unwrap(), dead_node_name);
+    let (_, dead_node) = inputs.get(dead_node_name).unwrap();
+    let new_root = match kill_node_attribute(&dead_node.parent().unwrap(), 1) {
+        Ok(node) => node,
+        Err(err) => return Err(format!("could not remove input: {}", err)),
+    };
+    let input_name = get_attr(1, dead_node_name).unwrap();
+
+    remove_input_from_output_fn(&new_root, &input_name)
 }
 
 pub fn get_attr(depth: usize, full_path: &str) -> Option<&str> {
