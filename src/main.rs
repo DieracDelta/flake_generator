@@ -4,7 +4,7 @@ mod user;
 use std::fs;
 use std::io::Write;
 
-use parser::{get_attr, kill_node_attribute, remove_input_from_output_fn};
+use parser::parser_utils::{get_attr, kill_node_attribute, remove_input_from_output_fn};
 use rnix::types::*;
 use user::*;
 
