@@ -1,10 +1,10 @@
-use crate::parser::parser_utils::{self, get_inputs, NixNode};
-use crate::parser::parser_utils::{get_attr, kill_node_attribute, remove_input_from_output_fn};
-use crate::user::{SmlStr, UserAction, UserMetadata, UserPrompt};
+use crate::parser::parser_utils::NixNode;
+use crate::user::{SmlStr, UserMetadata};
 use rnix::types::*;
 use std::fs;
 use std::io::Write;
 
+// TODO shouldn't we be concatenating the filename to the absolute path?
 pub fn filename_to_node(filename: &str, full_path: &SmlStr) -> Result<NixNode, String> {
     let content = match fs::read_to_string(filename) {
         Ok(content) => content,
@@ -33,4 +33,14 @@ pub fn filename_to_node(filename: &str, full_path: &SmlStr) -> Result<NixNode, S
         }
     };
     Ok(ast.root().inner().unwrap())
+}
+
+pub(crate) fn write_to_node(user_data: &UserMetadata) {
+    let stringified = user_data.root.as_ref().unwrap().to_string();
+    let mut file = fs::OpenOptions::new()
+        .write(true)
+        .truncate(true)
+        .open(user_data.clone().filename.unwrap())
+        .unwrap();
+    file.write_all(stringified.as_bytes()).unwrap();
 }

@@ -1,12 +1,8 @@
 mod parser;
 mod user;
 
-use std::fs;
-use std::io::Write;
-
-use parser::file::filename_to_node;
+use parser::file::{filename_to_node, write_to_node};
 use parser::parser_utils::{get_attr, kill_node_attribute, remove_input_from_output_fn};
-use rnix::types::*;
 use user::*;
 
 struct ActionStack {
@@ -112,25 +108,16 @@ fn main() {
 
                         user_data.new_root(
                             remove_input_from_output_fn(
-                                &mut (user_data.root.clone().unwrap()),
+                                &user_data.root.clone().unwrap(),
                                 &input_name,
                             )
                             .unwrap(),
                         );
-                        // TODO separate out into function
-                        let stringified = user_data.root.as_ref().unwrap().to_string();
-                        let mut file = fs::OpenOptions::new()
-                            .write(true)
-                            .truncate(true)
-                            .open(user_data.clone().filename.unwrap())
-                            .unwrap();
-                        file.write(stringified.as_bytes()).unwrap();
+                        write_to_node(&user_data);
 
                         // TODO better error handling
                         // TODO separate inputs out into a struct
-                        // TODO add in a "write to file" option at the end instead of
-                        // intermittently
-                        //root.unwrap():
+                        // TODO add in a "write to file" option at the end instead of writing after every modification
                         action_stack.push(UserAction::IntroParsed);
                     }
                     _ => unimplemented!(),
