@@ -116,7 +116,6 @@ fn main() {
                         write_to_node(&user_data);
 
                         // TODO better error handling
-                        // TODO separate inputs out into a struct
                         // TODO add in a "write to file" option at the end instead of writing after every modification
                         action_stack.push(UserAction::IntroParsed);
                     }

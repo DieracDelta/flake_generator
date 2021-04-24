@@ -159,6 +159,7 @@ pub fn get_inputs(root: &NixNode) -> HashMap<String, (String, NixNode)> {
     search_for_attr("inputs".to_string(), 1, root, None)
         .into_iter()
         .flat_map(|(ele, attribute_path, depth)| {
+            // inputs.{}.url: we expect the depth to be 3
             const EXPECTED_DEPTH: usize = 3;
             match ele.kind() {
                 // edge case of entire attribute set at once. E.g. inputs.nixpkgs.url = "foo";
@@ -173,8 +174,12 @@ pub fn get_inputs(root: &NixNode) -> HashMap<String, (String, NixNode)> {
                 NODE_ATTR_SET => search_for_attr("url".to_string(), 2, &ele, None)
                     .into_iter()
                     .filter_map(|(n_ele, path, n_depth)| {
-                        (depth + n_depth == EXPECTED_DEPTH)
-                            .then(|| (path, (get_str_val(&n_ele), n_ele)))
+                        (depth + n_depth == EXPECTED_DEPTH).then(|| {
+                            (
+                                format!("{}{}", attribute_path, path),
+                                (get_str_val(&n_ele), n_ele),
+                            )
+                        })
                     })
                     .collect(),
                 _ => vec![],

@@ -8,17 +8,23 @@ mod tests {
     use super::*;
 
     #[test]
-    pub fn get_inputs() {
+    pub fn check_inputs() {
         let ast = string_to_node(include_str!("../../test_data/inputs.nix").to_string()).unwrap();
         let inputs = get_inputs(&ast);
-        let nixpkgs = inputs.get("github:NixOS/nixpkgs/nixpkgs-unstable").unwrap();
-        let nixCargoIntegration = inputs.get("github:yusdacra/nix-cargo-integration").unwrap();
-        let hello = inputs.get("abc").unwrap();
-        let another_one = inputs.get("hello_world").unwrap();
-        assert_eq!(nixpkgs.0, ".nixpkgs.url");
-        assert_eq!(nixCargoIntegration.0, ".nixCargoIntegration.url");
-        assert_eq!(hello.0, ".inputs.hello.url");
-        assert_eq!(another_one.0, ".another_one.url");
+        let nixpkgs = inputs.get(".inputs.nixpkgs.url").unwrap();
+        assert_eq!(nixpkgs.0, "github:NixOS/nixpkgs/nixpkgs-unstable");
+
+        let nix_cargo_integration = inputs.get(".inputs.nixCargoIntegration.url").unwrap();
+        assert_eq!(
+            nix_cargo_integration.0,
+            "github:yusdacra/nix-cargo-integration"
+        );
+
+        let hello = inputs.get(".inputs.hello.url").unwrap();
+        assert_eq!(hello.0, "abc");
+
+        let another_one = inputs.get(".inputs.another_one.url").unwrap();
+        assert_eq!(another_one.0, "hello_world");
     }
 
     #[test]
