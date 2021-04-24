@@ -4,6 +4,16 @@ use rnix::types::*;
 use std::fs;
 use std::io::Write;
 
+pub fn string_to_node(content: String) -> Result<NixNode, String> {
+    let ast = match rnix::parse(&content).as_result() {
+        Ok(parsed) => parsed,
+        Err(err) => {
+            return Err(format!("could not parse as a nix file: {}", err));
+        }
+    };
+    Ok(ast.root().inner().unwrap())
+}
+
 // TODO shouldn't we be concatenating the filename to the absolute path?
 pub fn filename_to_node(filename: &str, full_path: &SmlStr) -> Result<NixNode, String> {
     let content = match fs::read_to_string(filename) {
@@ -23,16 +33,7 @@ pub fn filename_to_node(filename: &str, full_path: &SmlStr) -> Result<NixNode, S
             return Err(err_msg);
         }
     };
-    let ast = match rnix::parse(&content).as_result() {
-        Ok(parsed) => parsed,
-        Err(err) => {
-            return Err(format!(
-                "could not parse {} as a nix file: {}",
-                full_path, err
-            ));
-        }
-    };
-    Ok(ast.root().inner().unwrap())
+    string_to_node(content)
 }
 
 pub(crate) fn write_to_node(user_data: &UserMetadata) {
