@@ -1,6 +1,6 @@
 use crate::parser::{
     file::string_to_node,
-    parser_utils::{get_inputs, NixNode},
+    parser_utils::{get_inputs, remove_input_from_output_fn, NixNode},
 };
 
 #[cfg(test)]
@@ -8,7 +8,7 @@ mod tests {
     use super::*;
 
     #[test]
-    pub fn inputs() {
+    pub fn get_inputs() {
         let ast = string_to_node(include_str!("../../test_data/inputs.nix").to_string()).unwrap();
         let inputs = get_inputs(&ast);
         let nixpkgs = inputs.get("github:NixOS/nixpkgs/nixpkgs-unstable").unwrap();
@@ -22,22 +22,27 @@ mod tests {
     }
 
     #[test]
-    pub fn multi_arg() {
+    pub fn remove_inputs_multi_arg() {
+        let ast =
+            string_to_node(include_str!("../../test_data/multi_arg.nix").to_string()).unwrap();
+    }
+
+    #[test]
+    pub fn remove_inputs_no_args() {
+        let ast = string_to_node(include_str!("../../test_data/no_args.nix").to_string()).unwrap();
         assert_eq!(13, 13);
     }
 
     #[test]
-    pub fn no_args() {
+    pub fn remove_inputs_one_arg() {
+        let ast = string_to_node(include_str!("../../test_data/one_arg.nix").to_string()).unwrap();
         assert_eq!(13, 13);
     }
 
     #[test]
-    pub fn one_arg() {
-        assert_eq!(13, 13);
-    }
-
-    #[test]
-    pub fn zero_arg() {
+    pub fn remove_inputs_zero_args() {
+        let ast =
+            string_to_node(include_str!("../../test_data/zero_args.nix").to_string()).unwrap();
         assert_eq!(13, 13);
     }
 }
