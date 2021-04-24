@@ -4,6 +4,7 @@ mod user;
 use std::fs;
 use std::io::Write;
 
+use parser::file::filename_to_node;
 use parser::parser_utils::{get_attr, kill_node_attribute, remove_input_from_output_fn};
 use rnix::types::*;
 use user::*;
@@ -83,40 +84,14 @@ fn main() {
                     }
                     UserAction::ModifyExisting => {
                         let filename = other.0.as_str();
-                        let content = match fs::read_to_string(filename) {
-                            Ok(content) => {
-                                // TODO setter
+                        match filename_to_node(filename, &other) {
+                            Err(err_msg) => action_stack.push(UserAction::Error(err_msg)),
+                            Ok(root) => {
                                 user_data.filename = Some(filename.to_string());
-                                content
+                                user_data.root = Some(root);
+                                action_stack.push(UserAction::IntroParsed);
                             }
-                            Err(err) => {
-                                const IS_DIRECTORY_ERRNO: i32 = 21;
-                                let err_msg = if let Some(IS_DIRECTORY_ERRNO) = err.raw_os_error() {
-                                    format!("selected path {} is a directory", other)
-                                } else if err.kind() == std::io::ErrorKind::InvalidData {
-                                    format!(
-                                        "selected path {} does not contain valid UTF-8 data",
-                                        other
-                                    )
-                                } else {
-                                    format!("something is very wrong: {}", err)
-                                };
-                                action_stack.push(UserAction::Error(err_msg));
-                                continue;
-                            }
-                        };
-                        let ast = match rnix::parse(&content).as_result() {
-                            Ok(parsed) => parsed,
-                            Err(err) => {
-                                action_stack.push(UserAction::Error(format!(
-                                    "could not parse {} as a nix file: {}",
-                                    other, err
-                                )));
-                                continue;
-                            }
-                        };
-                        user_data.root = Some(ast.root().inner().unwrap());
-                        action_stack.push(UserAction::IntroParsed);
+                        }
                     }
                     UserAction::RemoveInput => {
                         let dead_node_path = other.0.as_str();
