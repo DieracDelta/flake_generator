@@ -2,7 +2,7 @@ mod parser;
 mod user;
 
 use parser::file::{filename_to_node, write_to_node};
-use parser::parser_utils::{get_attr, kill_node_attribute, remove_input_from_output_fn};
+use parser::parser_utils::{get_attr, kill_node_attribute, remove_input};
 use user::*;
 
 struct ActionStack {
@@ -90,32 +90,17 @@ fn main() {
                         }
                     }
                     UserAction::RemoveInput => {
-                        let dead_node_path = other.0.as_str();
+                        let dead_node_name = other.0.as_str();
                         let inputs = user_data.inputs.clone().unwrap();
-                        let (dead_node_name, dead_node) = inputs.get(dead_node_path).unwrap();
-                        let new_root = match kill_node_attribute(&dead_node.parent().unwrap(), 1) {
-                            Ok(node) => node,
-                            Err(err) => {
-                                action_stack.push(UserAction::Error(format!(
-                                    "could not remove input: {}",
-                                    err
-                                )));
-                                continue;
-                            }
-                        };
+                        let new_root = remove_input(
+                            user_data.root.as_ref().unwrap(),
+                            dead_node_name,
+                            Some(inputs),
+                        )
+                        .unwrap();
                         user_data.new_root(new_root);
-                        let input_name = get_attr(1, dead_node_name).unwrap();
-
-                        user_data.new_root(
-                            remove_input_from_output_fn(
-                                &user_data.root.clone().unwrap(),
-                                &input_name,
-                            )
-                            .unwrap(),
-                        );
                         write_to_node(&user_data);
 
-                        // TODO better error handling
                         // TODO add in a "write to file" option at the end instead of writing after every modification
                         action_stack.push(UserAction::IntroParsed);
                     }
