@@ -1,23 +1,9 @@
 use rnix::{types::*, NixLanguage, StrPart, SyntaxKind::*};
-use rowan::{api::SyntaxNode, GreenNodeBuilder};
+use rowan::api::SyntaxNode;
 
 pub(crate) type NixNode = SyntaxNode<NixLanguage>;
 
 use std::collections::HashMap;
-
-// this is decent as a general technique, but bad for specifics
-pub fn kill_node(node: &NixNode) -> Result<NixNode, String> {
-    let mut new_node = GreenNodeBuilder::new();
-    new_node.start_node(rowan::SyntaxKind(node.kind() as u16));
-    new_node.finish_node();
-    let a = new_node.finish();
-    let b = node.replace_with(a);
-    let mut new_root = NixNode::new_root(b);
-    while let Some(parent) = new_root.parent() {
-        new_root = parent;
-    }
-    Ok(Root::cast(new_root).unwrap().inner().unwrap())
-}
 
 /// Precondition: node is a attribute and parent is an attribute set
 /// (1) get parent attrset
@@ -47,7 +33,7 @@ pub fn kill_node_attribute(node: &NixNode, amount: usize) -> Result<NixNode, Str
                 child_node_idxs.next().is_none(),
                 "AST in inconsistent state. Child found multiple times in parent tree."
             );
-            let mut new_parent = node.parent().unwrap();
+            let new_parent = node.parent().unwrap();
             let mut new_parent_green = new_parent.green().to_owned();
             for i in idx..(idx + amount) {
                 let mut j = i;
@@ -79,10 +65,12 @@ pub fn kill_node_attribute(node: &NixNode, amount: usize) -> Result<NixNode, Str
 }
 
 /// converts a AST node to a string.
-fn get_str_val(node: &NixNode) -> Result<String, String> {
-    Ok(Str::cast(node.clone()).unwrap().parts().iter().fold(
-        String::new(),
-        |mut acc, ele| -> String {
+fn get_str_val(node: &NixNode) -> String {
+    Str::cast(node.clone())
+        .unwrap()
+        .parts()
+        .iter()
+        .fold(String::new(), |mut acc, ele| -> String {
             match ele {
                 StrPart::Literal(s) => {
                     acc.push_str(s);
@@ -90,8 +78,7 @@ fn get_str_val(node: &NixNode) -> Result<String, String> {
                 }
                 StrPart::Ast(_) => unimplemented!(),
             }
-        },
-    ))
+        })
 }
 
 /// given an attribute name, searches to max_depth
@@ -110,7 +97,7 @@ fn search_for_attr(
     max_depth: usize,
     root_node: &NixNode,
     exact_depth: Option<usize>,
-) -> Result<Vec<(NixNode, String, usize)>, String> {
+) -> Vec<(NixNode, String, usize)> {
     // assuming that the root node is an attrset
     // TODO if it's not, we should fail louder
     let mut stack = match AttrSet::cast((*root_node).clone()) {
@@ -127,7 +114,7 @@ fn search_for_attr(
         if cur_depth > max_depth {
             // failing softly here since we're past the max depth
             // might want to be a bit more loud
-            return Ok(vec![]);
+            return vec![];
         }
 
         let mut real_depth = cur_depth;
@@ -162,7 +149,7 @@ fn search_for_attr(
             }
         }
     }
-    Ok(result)
+    result
 }
 
 /// searches AST for input nodes
@@ -170,7 +157,6 @@ fn search_for_attr(
 /// for example { "github.com/foo/bar": Node(FooBar)}
 pub fn get_inputs(root: &NixNode) -> HashMap<String, (String, NixNode)> {
     search_for_attr("inputs".to_string(), 1, root, None)
-        .unwrap()
         .into_iter()
         .flat_map(|(ele, attribute_path, depth)| {
             const EXPECTED_DEPTH: usize = 3;
@@ -178,18 +164,17 @@ pub fn get_inputs(root: &NixNode) -> HashMap<String, (String, NixNode)> {
                 // edge case of entire attribute set at once. E.g. inputs.nixpkgs.url = "foo";
                 NODE_STRING => {
                     if depth == EXPECTED_DEPTH {
-                        vec![(get_str_val(&ele).unwrap(), (attribute_path, ele))]
+                        vec![(get_str_val(&ele), (attribute_path, ele))]
                     } else {
                         vec![]
                     }
                 }
                 // common case of { nixpkgs = { url = "foo"; }; }
                 NODE_ATTR_SET => search_for_attr("url".to_string(), 2, &ele, None)
-                    .unwrap()
                     .into_iter()
                     .filter_map(|(n_ele, n_node, n_depth)| {
                         (depth + n_depth == EXPECTED_DEPTH)
-                            .then(|| (get_str_val(&n_ele).unwrap(), (n_node, n_ele)))
+                            .then(|| (get_str_val(&n_ele), (n_node, n_ele)))
                     })
                     .collect(),
                 _ => vec![],
@@ -202,48 +187,45 @@ pub fn get_inputs(root: &NixNode) -> HashMap<String, (String, NixNode)> {
 /// if it's listed
 pub fn remove_input_from_output_fn(root: &NixNode, input_name: &str) -> Result<NixNode, String> {
     println!("input name: {:?}", input_name);
-    if let Ok(output_node) = search_for_attr("outputs".to_string(), 2, root, None) {
-        assert!(output_node.len() == 1);
-        let output_fn_node = Lambda::cast(output_node.get(0).unwrap().0.clone()).unwrap();
-        if let Some(args) = output_fn_node.arg() {
-            match args.kind() {
-                NODE_IDENT => return Ok(root.clone()),
-                NODE_PATTERN => {
-                    // TODO once rnix implements filter_entries, use that.
-                    let fn_args = Pattern::cast(args).unwrap();
-                    let mut arg_nodes = fn_args.entries().collect::<Vec<_>>();
-                    let arg_nodes_size = arg_nodes.len();
-                    if arg_nodes.is_empty() {
-                        return Ok((*root).clone());
-                    }
-                    let mut matching_arg_nodes = arg_nodes
-                        .iter()
-                        .enumerate()
-                        .filter(|(_idx, val)| val.name().unwrap().as_str() == input_name);
-                    dbg!(input_name);
-                    let (arg_node_idx, mut arg_node) = matching_arg_nodes.next().unwrap();
-                    assert!(
-                        matching_arg_nodes.next().is_none(),
-                        "Two of the same argument found. Error out!"
-                    );
-                    println!("indx: {:?}", arg_node_idx);
-                    let kill_comma = if arg_node_idx < arg_nodes_size
-                        || ((arg_node_idx == arg_nodes_size) && fn_args.ellipsis())
-                    {
-                        println!("killing the comma!");
-                        2
-                    } else {
-                        1
-                    };
-                    kill_node_attribute(arg_node.node(), 2)
+    let output_node = search_for_attr("outputs".to_string(), 2, root, None);
+    assert!(output_node.len() == 1);
+    let output_fn_node = Lambda::cast(output_node.get(0).unwrap().0.clone()).unwrap();
+    if let Some(args) = output_fn_node.arg() {
+        match args.kind() {
+            NODE_IDENT => Ok(root.clone()),
+            NODE_PATTERN => {
+                // TODO once rnix implements filter_entries, use that.
+                let fn_args = Pattern::cast(args).unwrap();
+                let arg_nodes = fn_args.entries().collect::<Vec<_>>();
+                let arg_nodes_size = arg_nodes.len();
+                if arg_nodes.is_empty() {
+                    return Ok((*root).clone());
                 }
-                _ => unimplemented!(),
+                let mut matching_arg_nodes = arg_nodes
+                    .iter()
+                    .enumerate()
+                    .filter(|(_idx, val)| val.name().unwrap().as_str() == input_name);
+                dbg!(input_name);
+                let (arg_node_idx, arg_node) = matching_arg_nodes.next().unwrap();
+                assert!(
+                    matching_arg_nodes.next().is_none(),
+                    "Two of the same argument found. Error out!"
+                );
+                println!("indx: {:?}", arg_node_idx);
+                let kill_comma = if arg_node_idx < arg_nodes_size
+                    || ((arg_node_idx == arg_nodes_size) && fn_args.ellipsis())
+                {
+                    println!("killing the comma!");
+                    2
+                } else {
+                    1
+                };
+                kill_node_attribute(arg_node.node(), kill_comma)
             }
-        } else {
-            Ok((*root).clone())
+            _ => unimplemented!(),
         }
     } else {
-        return Err("Function does not have outputs.".to_string());
+        Ok((*root).clone())
     }
 }
 
