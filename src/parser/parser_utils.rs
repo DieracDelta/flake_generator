@@ -47,9 +47,9 @@ pub fn kill_node_attribute(node: &NixNode, amount: usize) -> anyhow::Result<NixN
             let tmp = Root::cast(new_root).unwrap();
             Ok(tmp.inner().unwrap())
         }
-        _ => Err(anyhow!(
-            "Precondition violated: parent was not attribute set.".to_string()
-        )),
+        _ => Err(
+            anyhow!("Precondition violated: parent was not attribute set.")
+        ),
     }
 }
 
@@ -92,7 +92,7 @@ pub fn string_to_node(content: String) -> anyhow::Result<NixNode> {
 /// ```
 /// Will return [bar_node, "foo", 1]
 fn search_for_attr(
-    attr: String,
+    attr: &str,
     max_depth: usize,
     root_node: &NixNode,
     exact_depth: Option<usize>,
@@ -117,7 +117,7 @@ fn search_for_attr(
         }
 
         let mut real_depth = cur_depth;
-        let mut cur_node_attribute = "".to_string();
+        let mut cur_node_attribute = String::new();
         let mut is_match = false;
 
         for p in cur_node_key.path() {
@@ -155,7 +155,7 @@ fn search_for_attr(
 /// returns hashmap of value to node
 /// for example { "github.com/foo/bar": Node(FooBar)}
 pub fn get_inputs(root: &NixNode) -> HashMap<String, (String, NixNode)> {
-    search_for_attr("inputs".to_string(), 1, root, None)
+    search_for_attr("inputs", 1, root, None)
         .into_iter()
         .flat_map(|(ele, attribute_path, depth)| {
             // inputs.{}.url: we expect the depth to be 3
@@ -170,7 +170,7 @@ pub fn get_inputs(root: &NixNode) -> HashMap<String, (String, NixNode)> {
                     }
                 }
                 // common case of { nixpkgs = { url = "foo"; }; }
-                NODE_ATTR_SET => search_for_attr("url".to_string(), 2, &ele, None)
+                NODE_ATTR_SET => search_for_attr("url", 2, &ele, None)
                     .into_iter()
                     .filter_map(|(n_ele, path, n_depth)| {
                         (depth + n_depth == EXPECTED_DEPTH).then(|| {
@@ -190,7 +190,7 @@ pub fn get_inputs(root: &NixNode) -> HashMap<String, (String, NixNode)> {
 // exists for test usage
 pub fn get_output_node(root: &NixNode) -> anyhow::Result<Lambda> {
     Ok(Lambda::cast(
-        search_for_attr("outputs".to_string(), 2, root, None)
+        search_for_attr("outputs", 2, root, None)
             .get(0)
             .unwrap()
             .clone()
@@ -202,7 +202,7 @@ pub fn get_output_node(root: &NixNode) -> anyhow::Result<Lambda> {
 /// remove input node from outputs
 /// if it's listed
 pub fn remove_input_from_output_fn(root: &NixNode, input_name: &str) -> anyhow::Result<NixNode> {
-    let output_node = search_for_attr("outputs".to_string(), 2, root, None);
+    let output_node = search_for_attr("outputs", 2, root, None);
     assert!(output_node.len() == 1);
     let output_fn_node = Lambda::cast(output_node.get(0).unwrap().0.clone()).unwrap();
     if let Some(args) = output_fn_node.arg() {

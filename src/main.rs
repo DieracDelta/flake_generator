@@ -83,7 +83,7 @@ fn main() {
                         let filename = other.0.as_str();
                         match filename_to_node(filename, &other) {
                             Err(err_msg) => {
-                                action_stack.push(UserAction::Error(anyhow!(err_msg.to_string())))
+                                action_stack.push(UserAction::Error(err_msg))
                             }
                             Ok(root) => {
                                 user_data.filename = Some(filename.to_string());

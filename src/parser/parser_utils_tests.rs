@@ -67,11 +67,11 @@ mod tests {
         let deleted_another_one = new_inputs.get(".inputs.another_one.url");
         assert_eq!(deleted_another_one, None);
         assert_eq!(new_inputs.len(), 0);
-        let args = get_output_node(&result).unwrap().arg().unwrap();
-        assert!(!args.clone().to_string().contains(','));
-        assert!(args.clone().to_string().contains('{'));
-        assert!(args.clone().to_string().contains('}'));
-        assert!(args.clone().to_string().contains("..."));
+        let args = get_output_node(&result).unwrap().arg().unwrap().to_string();
+        assert!(!args.contains(','));
+        assert!(args.contains('{'));
+        assert!(args.contains('}'));
+        assert!(args.contains("..."));
     }
 
     #[test]
@@ -87,10 +87,10 @@ mod tests {
         let deleted_another_one = new_inputs.get(".inputs.another_one.url");
         assert_eq!(deleted_another_one, None);
         assert_eq!(new_inputs.len(), 0);
-        let args = get_output_node(&result).unwrap().arg().unwrap();
-        assert!(!args.clone().to_string().contains(','));
-        assert!(args.clone().to_string().contains('{'));
-        assert!(args.clone().to_string().contains('}'));
-        assert!(!args.clone().to_string().contains("..."));
+        let args = get_output_node(&result).unwrap().arg().unwrap().to_string();
+        assert!(!args.contains(','));
+        assert!(args.contains('{'));
+        assert!(args.contains('}'));
+        assert!(!args.contains("..."));
     }
 }
