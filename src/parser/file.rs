@@ -31,7 +31,7 @@ pub(crate) fn write_to_node(user_data: &UserMetadata) {
     let mut file = fs::OpenOptions::new()
         .write(true)
         .truncate(true)
-        .open(user_data.clone().filename.unwrap())
+        .open(user_data.filename.as_ref().unwrap())
         .unwrap();
     file.write_all(stringified.as_bytes()).unwrap();
 }
