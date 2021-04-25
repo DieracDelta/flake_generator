@@ -7,15 +7,16 @@
     };
   };
 
-  outputs = inputs@{nixpkgs, nixCargoIntegration, ...}: inputs.nixCargoIntegration.lib.makeOutputs {
-    root = ./.;
-    overrides = {
-      common = prev: {
-        env = prev.env // {
-          TEMPLATER_FMT_BIN = "${prev.pkgs.nixpkgs-fmt}/bin/nixpkgs-fmt";
-          TEMPLATER_CARGO_BIN = "${prev.pkgs.rustc}/bin/cargo";
+  outputs = inputs@{ nixpkgs, nixCargoIntegration, ... }:
+    nixCargoIntegration.lib.makeOutputs {
+      root = ./.;
+      overrides = {
+        common = prev: {
+          env = prev.env // {
+            TEMPLATER_FMT_BIN = "${prev.pkgs.nixpkgs-fmt}/bin/nixpkgs-fmt";
+            TEMPLATER_CARGO_BIN = "${prev.pkgs.rustc}/bin/cargo";
+          };
         };
       };
     };
-  };
 }
