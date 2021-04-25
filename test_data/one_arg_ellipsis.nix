@@ -5,5 +5,5 @@
     url = "hello_world";
   };
 
-  outputs = inputs@{hello, ...}: {};
+  outputs = inputs@{hello   , ...}: {};
 }

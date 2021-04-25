@@ -1,5 +1,6 @@
+use anyhow::{anyhow, bail};
 use rnix::{types::*, NixLanguage, StrPart, SyntaxKind::*};
-use rowan::{api::SyntaxNode, Language};
+use rowan::api::{Language, SyntaxNode};
 
 pub(crate) type NixNode = SyntaxNode<NixLanguage>;
 
@@ -12,7 +13,7 @@ use std::collections::HashMap;
 /// if child node is not found in parent, something is very wrong
 /// so error out/fail, and not in a graceful manner
 /// amount parameter specifies number of nodes/tokens to kill
-pub fn kill_node_attribute(node: &NixNode, amount: usize) -> Result<NixNode, String> {
+pub fn kill_node_attribute(node: &NixNode, amount: usize) -> anyhow::Result<NixNode> {
     let parent = node.parent().unwrap();
     match parent.kind() {
         NODE_ATTR_SET | NODE_PATTERN => {
@@ -34,11 +35,11 @@ pub fn kill_node_attribute(node: &NixNode, amount: usize) -> Result<NixNode, Str
                 child_node_idxs.next().is_none(),
                 "AST in inconsistent state. Child found multiple times in parent tree."
             );
-            let new_parent = node.parent().unwrap();
-            let mut new_parent_green = new_parent.green();
-            let result = new_parent_green
-                .splice_children(idx..idx + amount, std::iter::empty())
-                .to_owned();
+            let result = node
+                .parent()
+                .unwrap()
+                .green()
+                .splice_children(idx..idx + amount, std::iter::empty());
             let mut new_root = NixNode::new_root(parent.replace_with(result));
             while let Some(parent) = new_root.parent() {
                 new_root = parent;
@@ -46,7 +47,9 @@ pub fn kill_node_attribute(node: &NixNode, amount: usize) -> Result<NixNode, Str
             let tmp = Root::cast(new_root).unwrap();
             Ok(tmp.inner().unwrap())
         }
-        _ => Err("Precondition violated: parent was not attribute set.".to_string()),
+        _ => Err(anyhow!(
+            "Precondition violated: parent was not attribute set.".to_string()
+        )),
     }
 }
 
@@ -67,11 +70,11 @@ pub fn node_to_string(node: &NixNode) -> String {
         })
 }
 
-pub fn string_to_node(content: String) -> Result<NixNode, String> {
+pub fn string_to_node(content: String) -> anyhow::Result<NixNode> {
     let ast = match rnix::parse(&content).as_result() {
         Ok(parsed) => parsed,
         Err(err) => {
-            return Err(format!("could not parse as a nix file: {}", err));
+            bail!(format!("could not parse as a nix file: {}", err));
         }
     };
     Ok(ast.root().inner().unwrap())
@@ -184,7 +187,8 @@ pub fn get_inputs(root: &NixNode) -> HashMap<String, (String, NixNode)> {
         .collect()
 }
 
-pub fn get_output_node(root: &NixNode) -> Result<Lambda, String> {
+// exists for test usage
+pub fn get_output_node(root: &NixNode) -> anyhow::Result<Lambda> {
     Ok(Lambda::cast(
         search_for_attr("outputs".to_string(), 2, root, None)
             .get(0)
@@ -197,7 +201,7 @@ pub fn get_output_node(root: &NixNode) -> Result<Lambda, String> {
 
 /// remove input node from outputs
 /// if it's listed
-pub fn remove_input_from_output_fn(root: &NixNode, input_name: &str) -> Result<NixNode, String> {
+pub fn remove_input_from_output_fn(root: &NixNode, input_name: &str) -> anyhow::Result<NixNode> {
     let output_node = search_for_attr("outputs".to_string(), 2, root, None);
     assert!(output_node.len() == 1);
     let output_fn_node = Lambda::cast(output_node.get(0).unwrap().0.clone()).unwrap();
@@ -206,29 +210,52 @@ pub fn remove_input_from_output_fn(root: &NixNode, input_name: &str) -> Result<N
             NODE_IDENT => Ok(root.clone()),
             NODE_PATTERN => {
                 // TODO once rnix implements filter_entries, use that.
-                let fn_args = Pattern::cast(args).unwrap();
+                let fn_args = Pattern::cast(args.clone()).unwrap();
                 let arg_nodes = fn_args.entries().collect::<Vec<_>>();
-                let arg_nodes_size = arg_nodes.len();
                 if arg_nodes.is_empty() {
                     return Ok((*root).clone());
                 }
-                let mut matching_arg_nodes = arg_nodes
-                    .iter()
-                    .enumerate()
-                    .filter(|(_idx, val)| val.name().unwrap().as_str() == input_name);
+                let children = args.children_with_tokens();
+                let mut matching_arg_nodes =
+                    children
+                        .clone()
+                        .enumerate()
+                        .filter_map(|(idx, val)| match val.as_node() {
+                            Some(n) => match PatEntry::cast(n.clone()) {
+                                Some(pat) => {
+                                    if pat.name().unwrap().as_str() == input_name {
+                                        Some((idx, pat))
+                                    } else {
+                                        None
+                                    }
+                                }
+                                None => None,
+                            },
+                            None => None,
+                        });
+
                 let (arg_node_idx, arg_node) = matching_arg_nodes.next().unwrap();
                 assert!(
                     matching_arg_nodes.next().is_none(),
                     "Two of the same argument found. Error out!"
                 );
-                let kill_comma = if arg_node_idx < arg_nodes_size
-                    || ((arg_node_idx == arg_nodes_size) && fn_args.ellipsis())
-                {
-                    2
-                } else {
-                    1
+                // if there's a comma after the argument, we need to
+                // delete the comma and the argument
+                // can have a comma if there's another argument after
+                // or if it's the last argument and there are ellipsis
+                let mut matching_comma = children.enumerate().filter_map(|(idx, val)| {
+                    if idx > arg_node_idx && val.kind() == TOKEN_COMMA {
+                        Some(idx)
+                    } else {
+                        None
+                    }
+                });
+                // unwrap or zero
+                let idx_end = match matching_comma.next() {
+                    Some(idx) => idx - arg_node_idx + 1,
+                    None => 1,
                 };
-                kill_node_attribute(arg_node.node(), kill_comma)
+                kill_node_attribute(&arg_node.node(), idx_end)
             }
             _ => unimplemented!(),
         }
@@ -241,7 +268,7 @@ pub fn remove_input(
     root: &NixNode,
     dead_node_name: &str,
     user_inputs: Option<HashMap<String, (String, NixNode)>>,
-) -> Result<NixNode, String> {
+) -> anyhow::Result<NixNode> {
     let inputs = match user_inputs {
         Some(inputs) => inputs,
         None => get_inputs(root),
@@ -249,7 +276,7 @@ pub fn remove_input(
     let (_, dead_node) = inputs.get(dead_node_name).unwrap();
     let new_root = match kill_node_attribute(&dead_node.parent().unwrap(), 1) {
         Ok(node) => node,
-        Err(err) => return Err(format!("could not remove input: {}", err)),
+        Err(err) => bail!(format!("could not remove input: {}", err)),
     };
     let input_name = get_attr(1, dead_node_name).unwrap();
 
