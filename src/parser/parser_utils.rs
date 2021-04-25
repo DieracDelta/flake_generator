@@ -1,6 +1,6 @@
 use anyhow::{anyhow, bail};
 use rnix::{types::*, NixLanguage, StrPart, SyntaxKind::*};
-use rowan::api::{Language, SyntaxNode};
+use rowan::api::SyntaxNode;
 
 pub(crate) type NixNode = SyntaxNode<NixLanguage>;
 
