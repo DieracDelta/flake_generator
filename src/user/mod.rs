@@ -80,7 +80,7 @@ impl UserMetadata {
                 // check cache
                 self.ensure_inputs()
                     .iter()
-                    .map(|(attribute, value)| UserPrompt::from_str(attribute).unwrap())
+                    .map(|(attribute, _value)| UserPrompt::from_str(attribute).unwrap())
                     .chain(std::iter::once(UserPrompt::Back))
                     .collect()
             }

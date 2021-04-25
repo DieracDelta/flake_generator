@@ -1,9 +1,6 @@
-use crate::parser::parser_utils::{
-    get_inputs, get_output_node, node_to_string, remove_input, remove_input_from_output_fn,
-    string_to_node, NixNode,
-};
+use crate::parser::parser_utils::{get_inputs, get_output_node, remove_input, string_to_node};
 
-use rnix::{types::*, NixLanguage, StrPart, SyntaxKind::*};
+use rnix::{types::*, SyntaxKind::*};
 
 #[cfg(test)]
 mod tests {
@@ -36,6 +33,8 @@ mod tests {
         let result = remove_input(&ast, ".inputs.hello.url", None).unwrap();
         let result = remove_input(&result, ".inputs.another_one.url", None).unwrap();
 
+        println!("{:?}", result.to_string());
+
         let new_inputs = get_inputs(&result);
         let deleted_hello = new_inputs.get(".inputs.hello.url");
         assert_eq!(deleted_hello, None);
@@ -57,8 +56,9 @@ mod tests {
     }
 
     #[test]
-    pub fn remove_inputs_one_arg() {
-        let ast = string_to_node(include_str!("../../test_data/one_arg.nix").to_string()).unwrap();
+    pub fn remove_inputs_one_arg_ellipsis() {
+        let ast = string_to_node(include_str!("../../test_data/one_arg_ellipsis.nix").to_string())
+            .unwrap();
         let result = remove_input(&ast, ".inputs.hello.url", None).unwrap();
         let result = remove_input(&result, ".inputs.another_one.url", None).unwrap();
         let new_inputs = get_inputs(&result);
@@ -69,5 +69,28 @@ mod tests {
         assert_eq!(new_inputs.len(), 0);
         let args = get_output_node(&result).unwrap().arg().unwrap();
         assert!(!args.clone().to_string().contains(','));
+        assert!(args.clone().to_string().contains('{'));
+        assert!(args.clone().to_string().contains('}'));
+        assert!(args.clone().to_string().contains("..."));
+    }
+
+    #[test]
+    pub fn remove_inputs_one_arg_no_ellipsis() {
+        let ast =
+            string_to_node(include_str!("../../test_data/one_arg_no_ellipsis.nix").to_string())
+                .unwrap();
+        let result = remove_input(&ast, ".inputs.hello.url", None).unwrap();
+        let result = remove_input(&result, ".inputs.another_one.url", None).unwrap();
+        let new_inputs = get_inputs(&result);
+        let deleted_hello = new_inputs.get(".inputs.hello.url");
+        assert_eq!(deleted_hello, None);
+        let deleted_another_one = new_inputs.get(".inputs.another_one.url");
+        assert_eq!(deleted_another_one, None);
+        assert_eq!(new_inputs.len(), 0);
+        let args = get_output_node(&result).unwrap().arg().unwrap();
+        assert!(!args.clone().to_string().contains(','));
+        assert!(args.clone().to_string().contains('{'));
+        assert!(args.clone().to_string().contains('}'));
+        assert!(!args.clone().to_string().contains("..."));
     }
 }

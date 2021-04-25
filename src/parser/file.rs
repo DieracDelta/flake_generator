@@ -1,11 +1,11 @@
 use crate::parser::parser_utils::{string_to_node, NixNode};
 use crate::user::{SmlStr, UserMetadata};
-use rnix::types::*;
+use anyhow::bail;
 use std::fs;
 use std::io::Write;
 
 // TODO shouldn't we be concatenating the filename to the absolute path?
-pub fn filename_to_node(filename: &str, full_path: &SmlStr) -> Result<NixNode, String> {
+pub fn filename_to_node(filename: &str, full_path: &SmlStr) -> anyhow::Result<NixNode> {
     let content = match fs::read_to_string(filename) {
         Ok(content) => content,
         Err(err) => {
@@ -20,7 +20,7 @@ pub fn filename_to_node(filename: &str, full_path: &SmlStr) -> Result<NixNode, S
             } else {
                 format!("something is very wrong: {}", err)
             };
-            return Err(err_msg);
+            bail!(err_msg);
         }
     };
     string_to_node(content)
