@@ -1,5 +1,5 @@
 use rnix::{types::*, NixLanguage, StrPart, SyntaxKind::*};
-use rowan::api::SyntaxNode;
+use rowan::{api::SyntaxNode, Language};
 
 pub(crate) type NixNode = SyntaxNode<NixLanguage>;
 
@@ -11,6 +11,7 @@ use std::collections::HashMap;
 /// (4) return a modified tree with node deleted
 /// if child node is not found in parent, something is very wrong
 /// so error out/fail, and not in a graceful manner
+/// amount parameter specifies number of nodes/tokens to kill
 pub fn kill_node_attribute(node: &NixNode, amount: usize) -> Result<NixNode, String> {
     let parent = node.parent().unwrap();
     match parent.kind() {
@@ -34,26 +35,11 @@ pub fn kill_node_attribute(node: &NixNode, amount: usize) -> Result<NixNode, Str
                 "AST in inconsistent state. Child found multiple times in parent tree."
             );
             let new_parent = node.parent().unwrap();
-            let mut new_parent_green = new_parent.green().to_owned();
-            for i in idx..(idx + amount) {
-                let mut j = i;
-                loop {
-                    let tmptmp = new_parent_green.children().nth(j).unwrap();
-
-                    let tmp_child_text = match tmptmp.as_token() {
-                        Some(x) => x.text(),
-                        None => break,
-                    };
-
-                    if tmp_child_text.split_whitespace().next().is_none() {
-                        j += 1;
-                    } else {
-                        break;
-                    }
-                }
-                new_parent_green = new_parent_green.remove_child(j).to_owned();
-            }
-            let mut new_root = NixNode::new_root(parent.replace_with(new_parent_green));
+            let mut new_parent_green = new_parent.green();
+            let result = new_parent_green
+                .splice_children(idx..idx + amount, std::iter::empty())
+                .to_owned();
+            let mut new_root = NixNode::new_root(parent.replace_with(result));
             while let Some(parent) = new_root.parent() {
                 new_root = parent;
             }
@@ -212,7 +198,6 @@ pub fn get_output_node(root: &NixNode) -> Result<Lambda, String> {
 /// remove input node from outputs
 /// if it's listed
 pub fn remove_input_from_output_fn(root: &NixNode, input_name: &str) -> Result<NixNode, String> {
-    println!("input name: {:?}", input_name);
     let output_node = search_for_attr("outputs".to_string(), 2, root, None);
     assert!(output_node.len() == 1);
     let output_fn_node = Lambda::cast(output_node.get(0).unwrap().0.clone()).unwrap();
@@ -231,17 +216,14 @@ pub fn remove_input_from_output_fn(root: &NixNode, input_name: &str) -> Result<N
                     .iter()
                     .enumerate()
                     .filter(|(_idx, val)| val.name().unwrap().as_str() == input_name);
-                dbg!(input_name);
                 let (arg_node_idx, arg_node) = matching_arg_nodes.next().unwrap();
                 assert!(
                     matching_arg_nodes.next().is_none(),
                     "Two of the same argument found. Error out!"
                 );
-                println!("indx: {:?}", arg_node_idx);
                 let kill_comma = if arg_node_idx < arg_nodes_size
                     || ((arg_node_idx == arg_nodes_size) && fn_args.ellipsis())
                 {
-                    println!("killing the comma!");
                     2
                 } else {
                     1
