@@ -1,3 +1,4 @@
+use anyhow::anyhow;
 use parse_display::{Display, FromStr};
 use rust_nix_templater::{options::RustToolchainChannel, *};
 
@@ -68,7 +69,9 @@ impl Prompt {
         let act = match self {
             Prompt::Generate => match run_with_options(user_data.rust_options.clone(), false) {
                 Ok(_) => Action::Generated.into(),
-                Err(err) => UserAction::Error(format!("rust-nix-templater failed: {}", err)),
+                Err(err) => {
+                    UserAction::Error(anyhow!(format!("rust-nix-templater failed: {}", err)))
+                }
             },
             Prompt::SetCachixKey(_) => Action::SetCachixKey.into(),
             Prompt::SetCachixName(_) => Action::SetCachixName.into(),

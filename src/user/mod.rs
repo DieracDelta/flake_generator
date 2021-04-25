@@ -127,7 +127,7 @@ pub(crate) enum UserPrompt {
     Other(SmlStr),
 }
 
-#[derive(Eq, PartialEq, Debug, Clone, Display)]
+#[derive(Debug, Display)]
 pub(crate) enum UserAction {
     #[display("Welcome. Would you like to create a new flake or modify an existing flake?")]
     Intro,
@@ -150,7 +150,7 @@ pub(crate) enum UserAction {
     #[display("Is the input a flake?")]
     IsInputFlake,
     #[display("Encountered an error: {0}")]
-    Error(String),
+    Error(anyhow::Error),
     #[display("{0}")]
     Rust(rust::Action),
 }

@@ -1,6 +1,7 @@
 mod parser;
 mod user;
 
+use anyhow::anyhow;
 use parser::file::{filename_to_node, write_to_node};
 use parser::parser_utils::remove_input;
 use user::*;
@@ -43,10 +44,10 @@ fn main() {
         let user_selection = match user_data.get_user_prompt(cur_action) {
             Ok(prompt) => prompt,
             Err(err) => {
-                action_stack.push(UserAction::Error(format!(
+                action_stack.push(UserAction::Error(anyhow!(format!(
                     "could not process prompt: {}",
                     err
-                )));
+                ))));
                 continue;
             }
         };
@@ -82,7 +83,7 @@ fn main() {
                         let filename = other.0.as_str();
                         match filename_to_node(filename, &other) {
                             Err(err_msg) => {
-                                action_stack.push(UserAction::Error(err_msg.to_string()))
+                                action_stack.push(UserAction::Error(anyhow!(err_msg.to_string())))
                             }
                             Ok(root) => {
                                 user_data.filename = Some(filename.to_string());
