@@ -2,7 +2,7 @@ mod parser;
 mod user;
 
 use parser::file::{filename_to_node, write_to_node};
-use parser::parser_utils::{get_attr, kill_node_attribute, remove_input};
+use parser::parser_utils::remove_input;
 use user::*;
 
 struct ActionStack {
@@ -81,7 +81,9 @@ fn main() {
                     UserAction::ModifyExisting => {
                         let filename = other.0.as_str();
                         match filename_to_node(filename, &other) {
-                            Err(err_msg) => action_stack.push(UserAction::Error(err_msg)),
+                            Err(err_msg) => {
+                                action_stack.push(UserAction::Error(err_msg.to_string()))
+                            }
                             Ok(root) => {
                                 user_data.filename = Some(filename.to_string());
                                 user_data.root = Some(root);

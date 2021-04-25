@@ -211,28 +211,18 @@ pub fn remove_input_from_output_fn(root: &NixNode, input_name: &str) -> anyhow::
             NODE_PATTERN => {
                 // TODO once rnix implements filter_entries, use that.
                 let fn_args = Pattern::cast(args.clone()).unwrap();
-                let arg_nodes = fn_args.entries().collect::<Vec<_>>();
-                if arg_nodes.is_empty() {
+                if fn_args.entries().next().is_none() {
                     return Ok((*root).clone());
                 }
                 let children = args.children_with_tokens();
                 let mut matching_arg_nodes =
-                    children
-                        .clone()
-                        .enumerate()
-                        .filter_map(|(idx, val)| match val.as_node() {
-                            Some(n) => match PatEntry::cast(n.clone()) {
-                                Some(pat) => {
-                                    if pat.name().unwrap().as_str() == input_name {
-                                        Some((idx, pat))
-                                    } else {
-                                        None
-                                    }
-                                }
-                                None => None,
-                            },
-                            None => None,
-                        });
+                    children.clone().enumerate().filter_map(|(idx, val)| {
+                        val.as_node()
+                            .and_then(|n| PatEntry::cast(n.clone()))
+                            .and_then(|pat| {
+                                (pat.name().unwrap().as_str() == input_name).then(|| (idx, pat))
+                            })
+                    });
 
                 let (arg_node_idx, arg_node) = matching_arg_nodes.next().unwrap();
                 assert!(
