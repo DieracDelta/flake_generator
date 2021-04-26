@@ -302,10 +302,10 @@ impl Action {
                 return;
             }
             Action::SetToolchain => {
-                action_stack.push(UserAction::Error(format!(
+                action_stack.push(UserAction::Error(anyhow!(format!(
                     "{} is not a valid toolchain channel.",
                     other
-                )));
+                ))));
                 return;
             }
             _ => unreachable!(),
