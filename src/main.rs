@@ -82,9 +82,7 @@ fn main() {
                     UserAction::ModifyExisting => {
                         let filename = other.0.as_str();
                         match filename_to_node(filename, &other) {
-                            Err(err_msg) => {
-                                action_stack.push(UserAction::Error(err_msg))
-                            }
+                            Err(err_msg) => action_stack.push(UserAction::Error(err_msg)),
                             Ok(root) => {
                                 user_data.filename = Some(filename.to_string());
                                 user_data.root = Some(root);
