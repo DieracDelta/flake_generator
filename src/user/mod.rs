@@ -1,6 +1,6 @@
 pub mod rust;
 
-use crate::parser::parser_utils::{get_inputs, NixNode};
+use crate::parser::utils::{get_inputs, NixNode};
 
 use std::{collections::HashMap, io::Cursor, str::FromStr};
 

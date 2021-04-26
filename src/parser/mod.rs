@@ -1,3 +1,5 @@
 pub mod file;
-pub mod parser_utils;
-pub mod parser_utils_tests;
+pub mod utils;
+
+#[cfg(test)]
+mod utils_tests;
