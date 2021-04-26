@@ -1,4 +1,4 @@
-use anyhow::{anyhow, bail};
+use anyhow::anyhow;
 use rnix::{types::*, NixLanguage, StrPart, SyntaxKind::*};
 use rowan::api::SyntaxNode;
 
@@ -54,6 +54,7 @@ pub fn kill_node_attribute(node: &NixNode, amount: usize) -> anyhow::Result<NixN
 }
 
 /// converts a AST node to a string.
+#[cfg(test)]
 pub fn node_to_string(node: NixNode) -> String {
     Str::cast(node)
         .unwrap()
@@ -71,13 +72,10 @@ pub fn node_to_string(node: NixNode) -> String {
 }
 
 pub fn string_to_node(content: String) -> anyhow::Result<NixNode> {
-    let ast = match rnix::parse(&content).as_result() {
-        Ok(parsed) => parsed,
-        Err(err) => {
-            bail!(format!("could not parse as a nix file: {}", err));
-        }
-    };
-    Ok(ast.root().inner().unwrap())
+    rnix::parse(&content)
+        .as_result()
+        .map(|ast| ast.root().inner().unwrap())
+        .map_err(|err| anyhow!("could not parse as a nix file: {}", err))
 }
 
 /// given an attribute name, searches to max_depth
@@ -97,6 +95,13 @@ fn search_for_attr(
     root_node: &NixNode,
     exact_depth: Option<usize>,
 ) -> Vec<(NixNode, String, usize)> {
+    if let Some(x) = exact_depth {
+        assert!(
+            max_depth >= x,
+            "it is assumed that the node's max depth >= exact depth"
+        );
+    }
+
     // assuming that the root node is an attrset
     // TODO if it's not, we should fail louder
     let mut stack = match AttrSet::cast((*root_node).clone()) {
@@ -106,7 +111,7 @@ fn search_for_attr(
 
     let mut result = Vec::new();
 
-    while let Some((cur_node, mut path, cur_depth)) = stack.pop() {
+    while let Some((cur_node, mut path, mut cur_depth)) = stack.pop() {
         let cur_node_value = cur_node.value().unwrap();
         let cur_node_key = cur_node.key().unwrap();
 
@@ -116,7 +121,6 @@ fn search_for_attr(
             return vec![];
         }
 
-        let mut real_depth = cur_depth;
         let mut cur_node_attribute = String::new();
         let mut is_match = false;
 
@@ -125,15 +129,15 @@ fn search_for_attr(
             let cur_attr = tmp.as_str();
             cur_node_attribute.push('.');
             cur_node_attribute.push_str(&cur_attr);
-            real_depth += 1;
-            is_match = attr == cur_attr || is_match;
+            cur_depth += 1;
+            is_match |= attr == cur_attr;
         }
 
         path.push_str(&cur_node_attribute);
         is_match = (is_match || cur_node_attribute == attr)
-            && exact_depth.map_or(true, |x| x == real_depth);
+            && exact_depth.map_or(true, |x| x == cur_depth);
         if is_match {
-            result.push((cur_node_value, path, real_depth));
+            result.push((cur_node_value, path, cur_depth));
         } else {
             match cur_node_value.kind() {
                 NODE_ATTR_SET => {
@@ -141,7 +145,7 @@ fn search_for_attr(
                     stack.extend(
                         cur_node_casted
                             .entries()
-                            .map(|entry| (entry, path.clone(), real_depth)),
+                            .map(|entry| (entry, path.clone(), cur_depth)),
                     );
                 }
                 _kind => (),
@@ -184,23 +188,17 @@ pub fn get_inputs(root: &NixNode) -> HashMap<String, NixNode> {
 }
 
 // exists for test usage
+#[cfg(test)]
 pub fn get_output_node(root: &NixNode) -> anyhow::Result<Lambda> {
-    Ok(Lambda::cast(
-        search_for_attr("outputs", 2, root, None)
-            .get(0)
-            .unwrap()
-            .clone()
-            .0,
-    )
-    .unwrap())
+    Ok(Lambda::cast(search_for_attr("outputs", 2, root, None).remove(0).0).unwrap())
 }
 
 /// remove input node from outputs
 /// if it's listed
 pub fn remove_input_from_output_fn(root: NixNode, input_name: &str) -> anyhow::Result<NixNode> {
-    let output_node = search_for_attr("outputs", 2, &root, None);
+    let mut output_node = search_for_attr("outputs", 2, &root, None);
     assert!(output_node.len() == 1);
-    let output_fn_node = Lambda::cast(output_node.get(0).unwrap().0.clone()).unwrap();
+    let output_fn_node = Lambda::cast(output_node.remove(0).0).unwrap();
     if let Some(args) = output_fn_node.arg() {
         match args.kind() {
             NODE_IDENT => Ok(root),
@@ -210,34 +208,36 @@ pub fn remove_input_from_output_fn(root: NixNode, input_name: &str) -> anyhow::R
                 if fn_args.entries().next().is_none() {
                     return Ok(root);
                 }
-                let children = args.children_with_tokens();
-                let mut matching_arg_nodes =
-                    children.clone().enumerate().filter_map(|(idx, val)| {
-                        val.as_node()
-                            .and_then(|n| PatEntry::cast(n.clone()))
-                            .and_then(|pat| {
-                                (pat.name().unwrap().as_str() == input_name).then(|| (idx, pat))
-                            })
-                    });
 
-                let (arg_node_idx, arg_node) = matching_arg_nodes.next().unwrap();
-                assert!(
-                    matching_arg_nodes.next().is_none(),
-                    "Two of the same argument found. Error out!"
-                );
-                // if there's a comma after the argument, we need to
-                // delete the comma and the argument
-                // can have a comma if there's another argument after
-                // or if it's the last argument and there are ellipsis
-                let mut matching_comma = children.enumerate().filter_map(|(idx, val)| {
-                    if idx > arg_node_idx && val.kind() == TOKEN_COMMA {
-                        Some(idx)
-                    } else {
-                        None
+                let mut matching_arg_node = None;
+                let mut matching_comma = None;
+
+                for (idx, val) in args.children_with_tokens().enumerate() {
+                    if let Some(pat) = val.as_node().and_then(|n| PatEntry::cast(n.clone())) {
+                        if pat.name().unwrap().as_str() != input_name {
+                            continue;
+                        }
+                        if matching_arg_node.take().is_some() {
+                            panic!("argument {} found twice", input_name);
+                        }
+                        matching_arg_node = Some((idx, pat));
+                    } else if let Some((arg_node_idx, _)) = matching_arg_node {
+                        // if there's a comma after the argument, we need to
+                        // delete the comma and the argument
+                        // can have a comma if there's another argument after
+                        // or if it's the last argument and there are ellipsis
+                        if matching_comma.is_none()
+                            && idx > arg_node_idx
+                            && val.kind() == TOKEN_COMMA
+                        {
+                            matching_comma = Some(idx);
+                        }
                     }
-                });
+                }
+
+                let (arg_node_idx, arg_node) = matching_arg_node.unwrap();
                 // unwrap or zero
-                let idx_end = match matching_comma.next() {
+                let idx_end = match matching_comma {
                     Some(idx) => idx - arg_node_idx + 1,
                     None => 1,
                 };
@@ -264,10 +264,8 @@ pub fn remove_input(
         }
     };
     let dead_node = inputs.get(dead_node_name).unwrap();
-    let new_root = match kill_node_attribute(&dead_node.parent().unwrap(), 1) {
-        Ok(node) => node,
-        Err(err) => bail!(format!("could not remove input: {}", err)),
-    };
+    let new_root = kill_node_attribute(&dead_node.parent().unwrap(), 1)
+        .map_err(|e| anyhow!("could not remove input: {}", e))?;
     let input_name = get_attr(1, dead_node_name).unwrap();
 
     remove_input_from_output_fn(new_root, &input_name)
