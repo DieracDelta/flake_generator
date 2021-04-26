@@ -48,7 +48,7 @@ impl FromStr for SmlStr {
 #[derive(Debug, Default, Clone)]
 pub(crate) struct UserMetadata {
     pub(crate) root: Option<NixNode>,
-    pub(crate) inputs: Option<HashMap<String, (String, NixNode)>>,
+    pub(crate) inputs: Option<HashMap<String, NixNode>>,
     pub(crate) filename: Option<String>,
     pub(crate) rust_options: rust_nix_templater::Options,
 }
@@ -59,7 +59,7 @@ impl UserMetadata {
         self.root = Some(root);
     }
 
-    fn ensure_inputs(&mut self) -> &mut HashMap<String, (String, NixNode)> {
+    fn ensure_inputs(&mut self) -> &mut HashMap<String, NixNode> {
         let root_ref = self.root.as_ref();
         self.inputs
             .get_or_insert_with(|| get_inputs(root_ref.unwrap()))
@@ -79,8 +79,8 @@ impl UserMetadata {
             UserAction::RemoveInput => {
                 // check cache
                 self.ensure_inputs()
-                    .iter()
-                    .map(|(attribute, _value)| UserPrompt::from_str(attribute).unwrap())
+                    .keys()
+                    .map(|attr| UserPrompt::from_str(attr).unwrap())
                     .chain(std::iter::once(UserPrompt::Back))
                     .collect()
             }
