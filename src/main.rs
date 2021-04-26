@@ -3,7 +3,7 @@ mod user;
 
 use anyhow::anyhow;
 use parser::file::{filename_to_node, write_to_node};
-use parser::parser_utils::remove_input;
+use parser::utils::remove_input;
 use user::*;
 
 struct ActionStack {

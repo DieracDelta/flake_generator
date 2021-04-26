@@ -1,4 +1,4 @@
-use crate::parser::parser_utils::{string_to_node, NixNode};
+use crate::parser::utils::{string_to_node, NixNode};
 use crate::user::{SmlStr, UserMetadata};
 use anyhow::bail;
 use std::fs;
