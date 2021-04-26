@@ -301,6 +301,13 @@ impl Action {
                 action_stack.pop();
                 return;
             }
+            Action::SetToolchain => {
+                action_stack.push(UserAction::Error(format!(
+                    "{} is not a valid toolchain channel.",
+                    other
+                )));
+                return;
+            }
             _ => unreachable!(),
         };
         *opt = (!other.is_empty()).then(|| other);

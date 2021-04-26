@@ -73,7 +73,9 @@
         "nixpkgs": [
           "nixpkgs"
         ],
-        "rustOverlay": "rustOverlay"
+        "rustOverlay": [
+          "rustOverlay"
+        ]
       },
       "locked": {
         "lastModified": 1619291294,
@@ -108,7 +110,8 @@
     "root": {
       "inputs": {
         "nixCargoIntegration": "nixCargoIntegration",
-        "nixpkgs": "nixpkgs"
+        "nixpkgs": "nixpkgs",
+        "rustOverlay": "rustOverlay"
       }
     },
     "rustOverlay": {
