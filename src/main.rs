@@ -93,11 +93,10 @@ fn main() {
                         }
                     }
                     UserAction::RemoveInput => {
-                        let dead_node_name = other.0.as_str();
-                        let inputs = user_data.inputs.clone().unwrap();
+                        let inputs = user_data.inputs.as_ref().unwrap();
                         let new_root = remove_input(
                             user_data.root.as_ref().unwrap(),
-                            dead_node_name,
+                            other.0.as_str(),
                             Some(inputs),
                         )
                         .unwrap();

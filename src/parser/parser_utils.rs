@@ -201,18 +201,18 @@ pub fn get_output_node(root: &NixNode) -> anyhow::Result<Lambda> {
 
 /// remove input node from outputs
 /// if it's listed
-pub fn remove_input_from_output_fn(root: &NixNode, input_name: &str) -> anyhow::Result<NixNode> {
-    let output_node = search_for_attr("outputs", 2, root, None);
+pub fn remove_input_from_output_fn(root: NixNode, input_name: &str) -> anyhow::Result<NixNode> {
+    let output_node = search_for_attr("outputs", 2, &root, None);
     assert!(output_node.len() == 1);
     let output_fn_node = Lambda::cast(output_node.get(0).unwrap().0.clone()).unwrap();
     if let Some(args) = output_fn_node.arg() {
         match args.kind() {
-            NODE_IDENT => Ok(root.clone()),
+            NODE_IDENT => Ok(root),
             NODE_PATTERN => {
                 // TODO once rnix implements filter_entries, use that.
                 let fn_args = Pattern::cast(args.clone()).unwrap();
                 if fn_args.entries().next().is_none() {
-                    return Ok((*root).clone());
+                    return Ok(root);
                 }
                 let children = args.children_with_tokens();
                 let mut matching_arg_nodes =
@@ -250,18 +250,22 @@ pub fn remove_input_from_output_fn(root: &NixNode, input_name: &str) -> anyhow::
             _ => unimplemented!(),
         }
     } else {
-        Ok((*root).clone())
+        Ok(root)
     }
 }
 
 pub fn remove_input(
     root: &NixNode,
     dead_node_name: &str,
-    user_inputs: Option<HashMap<String, (String, NixNode)>>,
+    user_inputs: Option<&HashMap<String, (String, NixNode)>>,
 ) -> anyhow::Result<NixNode> {
+    let tmp;
     let inputs = match user_inputs {
         Some(inputs) => inputs,
-        None => get_inputs(root),
+        None => {
+            tmp = get_inputs(root);
+            &tmp
+        },
     };
     let (_, dead_node) = inputs.get(dead_node_name).unwrap();
     let new_root = match kill_node_attribute(&dead_node.parent().unwrap(), 1) {
@@ -270,7 +274,7 @@ pub fn remove_input(
     };
     let input_name = get_attr(1, dead_node_name).unwrap();
 
-    remove_input_from_output_fn(&new_root, &input_name)
+    remove_input_from_output_fn(new_root, &input_name)
 }
 
 pub fn get_attr(depth: usize, full_path: &str) -> Option<&str> {
