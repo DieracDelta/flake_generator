@@ -47,15 +47,15 @@ pub fn kill_node_attribute(node: &NixNode, amount: usize) -> anyhow::Result<NixN
             let tmp = Root::cast(new_root).unwrap();
             Ok(tmp.inner().unwrap())
         }
-        _ => Err(
-            anyhow!("Precondition violated: parent was not attribute set.")
-        ),
+        _ => Err(anyhow!(
+            "Precondition violated: parent was not attribute set."
+        )),
     }
 }
 
 /// converts a AST node to a string.
-pub fn node_to_string(node: &NixNode) -> String {
-    Str::cast(node.clone())
+pub fn node_to_string(node: NixNode) -> String {
+    Str::cast(node)
         .unwrap()
         .parts()
         .iter()
@@ -154,7 +154,7 @@ fn search_for_attr(
 /// searches AST for input nodes
 /// returns hashmap of value to node
 /// for example { "github.com/foo/bar": Node(FooBar)}
-pub fn get_inputs(root: &NixNode) -> HashMap<String, (String, NixNode)> {
+pub fn get_inputs(root: &NixNode) -> HashMap<String, NixNode> {
     search_for_attr("inputs", 1, root, None)
         .into_iter()
         .flat_map(|(ele, attribute_path, depth)| {
@@ -164,7 +164,7 @@ pub fn get_inputs(root: &NixNode) -> HashMap<String, (String, NixNode)> {
                 // edge case of entire attribute set at once. E.g. inputs.nixpkgs.url = "foo";
                 NODE_STRING => {
                     if depth == EXPECTED_DEPTH {
-                        vec![(attribute_path, (node_to_string(&ele), ele))]
+                        vec![(attribute_path, ele)]
                     } else {
                         vec![]
                     }
@@ -173,12 +173,8 @@ pub fn get_inputs(root: &NixNode) -> HashMap<String, (String, NixNode)> {
                 NODE_ATTR_SET => search_for_attr("url", 2, &ele, None)
                     .into_iter()
                     .filter_map(|(n_ele, path, n_depth)| {
-                        (depth + n_depth == EXPECTED_DEPTH).then(|| {
-                            (
-                                format!("{}{}", attribute_path, path),
-                                (node_to_string(&n_ele), n_ele),
-                            )
-                        })
+                        (depth + n_depth == EXPECTED_DEPTH)
+                            .then(|| (format!("{}{}", attribute_path, path), n_ele))
                     })
                     .collect(),
                 _ => vec![],
@@ -257,7 +253,7 @@ pub fn remove_input_from_output_fn(root: NixNode, input_name: &str) -> anyhow::R
 pub fn remove_input(
     root: &NixNode,
     dead_node_name: &str,
-    user_inputs: Option<&HashMap<String, (String, NixNode)>>,
+    user_inputs: Option<&HashMap<String, NixNode>>,
 ) -> anyhow::Result<NixNode> {
     let tmp;
     let inputs = match user_inputs {
@@ -265,9 +261,9 @@ pub fn remove_input(
         None => {
             tmp = get_inputs(root);
             &tmp
-        },
+        }
     };
-    let (_, dead_node) = inputs.get(dead_node_name).unwrap();
+    let dead_node = inputs.get(dead_node_name).unwrap();
     let new_root = match kill_node_attribute(&dead_node.parent().unwrap(), 1) {
         Ok(node) => node,
         Err(err) => bail!(format!("could not remove input: {}", err)),

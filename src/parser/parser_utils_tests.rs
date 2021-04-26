@@ -1,4 +1,6 @@
-use crate::parser::parser_utils::{get_inputs, get_output_node, remove_input, string_to_node};
+use crate::parser::parser_utils::{
+    get_inputs, get_output_node, node_to_string, remove_input, string_to_node,
+};
 
 use rnix::{types::*, SyntaxKind::*};
 
@@ -10,20 +12,26 @@ mod tests {
     pub fn check_inputs() {
         let ast = string_to_node(include_str!("../../test_data/inputs.nix").to_string()).unwrap();
         let inputs = get_inputs(&ast);
-        let nixpkgs = inputs.get(".inputs.nixpkgs.url").unwrap();
-        assert_eq!(nixpkgs.0, "github:NixOS/nixpkgs/nixpkgs-unstable");
-
-        let nix_cargo_integration = inputs.get(".inputs.nixCargoIntegration.url").unwrap();
+        let nixpkgs = inputs.get(".inputs.nixpkgs.url").unwrap().clone();
         assert_eq!(
-            nix_cargo_integration.0,
+            node_to_string(nixpkgs),
+            "github:NixOS/nixpkgs/nixpkgs-unstable"
+        );
+
+        let nix_cargo_integration = inputs
+            .get(".inputs.nixCargoIntegration.url")
+            .unwrap()
+            .clone();
+        assert_eq!(
+            node_to_string(nix_cargo_integration),
             "github:yusdacra/nix-cargo-integration"
         );
 
-        let hello = inputs.get(".inputs.hello.url").unwrap();
-        assert_eq!(hello.0, "abc");
+        let hello = inputs.get(".inputs.hello.url").unwrap().clone();
+        assert_eq!(node_to_string(hello), "abc");
 
-        let another_one = inputs.get(".inputs.another_one.url").unwrap();
-        assert_eq!(another_one.0, "hello_world");
+        let another_one = inputs.get(".inputs.another_one.url").unwrap().clone();
+        assert_eq!(node_to_string(another_one), "hello_world");
     }
 
     #[test]
