@@ -13,6 +13,7 @@ rowan = "0.12.6"
 parse-display = "0.4.1"
 anyhow = "1.0"
 rust-nix-templater = { git = "https://github.com/yusdacra/rust-nix-templater.git", branch = "master" }
+either = "1.6.1"
 
 [package.metadata.nix]
 app = true
