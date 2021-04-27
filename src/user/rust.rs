@@ -1,3 +1,4 @@
+use anyhow::anyhow;
 use parse_display::{Display, FromStr};
 use rust_nix_templater::{options::RustToolchainChannel, *};
 
@@ -68,7 +69,9 @@ impl Prompt {
         let act = match self {
             Prompt::Generate => match run_with_options(user_data.rust_options.clone(), false) {
                 Ok(_) => Action::Generated.into(),
-                Err(err) => UserAction::Error(format!("rust-nix-templater failed: {}", err)),
+                Err(err) => {
+                    UserAction::Error(anyhow!(format!("rust-nix-templater failed: {}", err)))
+                }
             },
             Prompt::SetCachixKey(_) => Action::SetCachixKey.into(),
             Prompt::SetCachixName(_) => Action::SetCachixName.into(),
@@ -267,23 +270,22 @@ impl Action {
         action_stack: &mut ActionStack,
         user_data: &mut UserMetadata,
     ) {
+        let mut rust_options = &mut user_data.rust_options;
         let mut other = other.0.trim().to_string();
         let opt = match self {
-            Action::SetCachixKey => &mut user_data.rust_options.cachix_public_key,
-            Action::SetCachixName => &mut user_data.rust_options.cachix_name,
-            Action::SetPackageName => &mut user_data.rust_options.package_name,
-            Action::SetDescription => &mut user_data.rust_options.package_description,
-            Action::SetLongDescription => &mut user_data.rust_options.package_long_description,
-            Action::SetExecName => &mut user_data.rust_options.package_executable,
-            Action::SetLicense => &mut user_data.rust_options.package_license,
-            Action::SetDesktopFileCategories => &mut user_data.rust_options.package_xdg_categories,
-            Action::SetDesktopFileComment => &mut user_data.rust_options.package_xdg_comment,
-            Action::SetDesktopFileGenericName => {
-                &mut user_data.rust_options.package_xdg_generic_name
-            }
-            Action::SetDesktopFileName => &mut user_data.rust_options.package_xdg_desktop_name,
+            Action::SetCachixKey => &mut rust_options.cachix_public_key,
+            Action::SetCachixName => &mut rust_options.cachix_name,
+            Action::SetPackageName => &mut rust_options.package_name,
+            Action::SetDescription => &mut rust_options.package_description,
+            Action::SetLongDescription => &mut rust_options.package_long_description,
+            Action::SetExecName => &mut rust_options.package_executable,
+            Action::SetLicense => &mut rust_options.package_license,
+            Action::SetDesktopFileCategories => &mut rust_options.package_xdg_categories,
+            Action::SetDesktopFileComment => &mut rust_options.package_xdg_comment,
+            Action::SetDesktopFileGenericName => &mut rust_options.package_xdg_generic_name,
+            Action::SetDesktopFileName => &mut rust_options.package_xdg_desktop_name,
             Action::SetIcon => {
-                user_data.rust_options.package_icon = Some(if !other.starts_with("./") {
+                rust_options.package_icon = Some(if !other.starts_with("./") {
                     other.insert_str(0, "./");
                     other
                 } else {
@@ -293,16 +295,16 @@ impl Action {
                 return;
             }
             Action::SetSystems => {
-                user_data.rust_options.package_systems = (!other.is_empty())
+                rust_options.package_systems = (!other.is_empty())
                     .then(|| other.split_whitespace().map(str::to_string).collect());
                 action_stack.pop();
                 return;
             }
             Action::SetToolchain => {
-                action_stack.push(UserAction::Error(format!(
+                action_stack.push(UserAction::Error(anyhow!(format!(
                     "{} is not a valid toolchain channel.",
                     other
-                )));
+                ))));
                 return;
             }
             _ => unreachable!(),

@@ -1,10 +1,9 @@
 mod parser;
 mod user;
 
-use std::fs;
-
-use parser::kill_node_attribute;
-use rnix::types::*;
+use anyhow::anyhow;
+use parser::file::{filename_to_node, write_to_node};
+use parser::utils::remove_input;
 use user::*;
 
 struct ActionStack {
@@ -45,10 +44,10 @@ fn main() {
         let user_selection = match user_data.get_user_prompt(cur_action) {
             Ok(prompt) => prompt,
             Err(err) => {
-                action_stack.push(UserAction::Error(format!(
+                action_stack.push(UserAction::Error(anyhow!(format!(
                     "could not process prompt: {}",
                     err
-                )));
+                ))));
                 continue;
             }
         };
@@ -81,60 +80,28 @@ fn main() {
                             .process_action(other, &mut action_stack, &mut user_data)
                     }
                     UserAction::ModifyExisting => {
-                        let content = match fs::read_to_string(other.0.as_str()) {
-                            Ok(content) => content,
-                            Err(err) => {
-                                const IS_DIRECTORY_ERRNO: i32 = 21;
-                                let err_msg = if let Some(IS_DIRECTORY_ERRNO) = err.raw_os_error() {
-                                    format!("selected path {} is a directory", other)
-                                } else if err.kind() == std::io::ErrorKind::InvalidData {
-                                    format!(
-                                        "selected path {} does not contain valid UTF-8 data",
-                                        other
-                                    )
-                                } else {
-                                    format!("something is very wrong: {}", err)
-                                };
-                                action_stack.push(UserAction::Error(err_msg));
-                                continue;
+                        let filename = other.0.as_str();
+                        match filename_to_node(filename, &other) {
+                            Err(err_msg) => action_stack.push(UserAction::Error(err_msg)),
+                            Ok(root) => {
+                                user_data.filename = Some(filename.to_string());
+                                user_data.root = Some(root);
+                                action_stack.push(UserAction::IntroParsed);
                             }
-                        };
-                        let ast = match rnix::parse(&content).as_result() {
-                            Ok(parsed) => parsed,
-                            Err(err) => {
-                                action_stack.push(UserAction::Error(format!(
-                                    "could not parse {} as a nix file: {}",
-                                    other, err
-                                )));
-                                continue;
-                            }
-                        };
-                        user_data.root = Some(ast.root().inner().unwrap());
-                        action_stack.push(UserAction::IntroParsed);
+                        }
                     }
                     UserAction::RemoveInput => {
-                        let dead_node = &user_data
-                            .inputs
-                            .clone()
-                            .unwrap()
-                            .get(other.0.as_str())
-                            .unwrap()
-                            .parent()
-                            .unwrap();
-                        let new_root = match kill_node_attribute(dead_node) {
-                            Ok(node) => node,
-                            Err(err) => {
-                                action_stack.push(UserAction::Error(format!(
-                                    "could not remove input: {}",
-                                    err
-                                )));
-                                continue;
-                            }
-                        };
+                        let inputs = user_data.inputs.as_ref().unwrap();
+                        let new_root = remove_input(
+                            user_data.root.as_ref().unwrap(),
+                            other.0.as_str(),
+                            Some(inputs),
+                        )
+                        .unwrap();
                         user_data.new_root(new_root);
-                        println!("{}", user_data.root.as_ref().unwrap().to_string());
-                        // TODO better error handling
-                        //root.unwrap():
+                        write_to_node(&user_data);
+
+                        // TODO add in a "write to file" option at the end instead of writing after every modification
                         action_stack.push(UserAction::IntroParsed);
                     }
                     _ => unimplemented!(),

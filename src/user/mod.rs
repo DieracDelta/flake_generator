@@ -1,6 +1,6 @@
 pub mod rust;
 
-use crate::parser::{self, NixNode};
+use crate::parser::utils::{get_inputs, NixNode};
 
 use std::{collections::HashMap, io::Cursor, str::FromStr};
 
@@ -45,7 +45,7 @@ impl FromStr for SmlStr {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub(crate) struct UserMetadata {
     pub(crate) root: Option<NixNode>,
     pub(crate) inputs: Option<HashMap<String, NixNode>>,
@@ -62,7 +62,7 @@ impl UserMetadata {
     fn ensure_inputs(&mut self) -> &mut HashMap<String, NixNode> {
         let root_ref = self.root.as_ref();
         self.inputs
-            .get_or_insert_with(|| parser::get_inputs(root_ref.unwrap()))
+            .get_or_insert_with(|| get_inputs(root_ref.unwrap()))
     }
 
     pub(crate) fn get_prompt_items(&mut self, action: &UserAction) -> Vec<UserPrompt> {
@@ -80,7 +80,7 @@ impl UserMetadata {
                 // check cache
                 self.ensure_inputs()
                     .keys()
-                    .map(|s| UserPrompt::from_str(s).unwrap())
+                    .map(|attr| UserPrompt::from_str(attr).unwrap())
                     .chain(std::iter::once(UserPrompt::Back))
                     .collect()
             }
@@ -127,7 +127,7 @@ pub(crate) enum UserPrompt {
     Other(SmlStr),
 }
 
-#[derive(Eq, PartialEq, Debug, Clone, Display)]
+#[derive(Debug, Display)]
 pub(crate) enum UserAction {
     #[display("Welcome. Would you like to create a new flake or modify an existing flake?")]
     Intro,
@@ -150,7 +150,7 @@ pub(crate) enum UserAction {
     #[display("Is the input a flake?")]
     IsInputFlake,
     #[display("Encountered an error: {0}")]
-    Error(String),
+    Error(anyhow::Error),
     #[display("{0}")]
     Rust(rust::Action),
 }
