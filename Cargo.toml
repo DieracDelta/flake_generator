@@ -14,6 +14,7 @@ parse-display = "0.4.1"
 anyhow = "1.0"
 rust-nix-templater = { git = "https://github.com/yusdacra/rust-nix-templater.git", branch = "master" }
 either = "1.6.1"
+nixpkgs-fmt = "1.1.0"
 
 [package.metadata.nix]
 app = true
