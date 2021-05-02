@@ -34,23 +34,12 @@ their package and set of dependencies.
 
 The idea is to have the user specify the type of dependencies,
 flake inputs and outputs, and type of the package with `skim`,
-then to output a flake. This flake is then validated with `rnix`.
+then to output a flake. This flake is then validated with `rnix`
+formatted with `nixpkgs-fmt`, then written to a file.
 
 If the user wants to modify an existing flake to add or remove
 dependencies, this will also be possible. The flake shall be
-parsed in with `rnix`, and the user will be able to modify it.
-
-As of now, basically none of the features exist. I've only
-got the proof of concept working: skim can be used for a cli
-and rnix can be used to modify the AST.
-
-Further down the line, I'd like to make this even more interactive.
-This will involve querying github, crates.io, pypy, nixpkgs and more for packages,
-then piping them into skim for selection based on language.
-
-The hope is to also provide automatic support for pre-existing
-nix expression generators such as node2nix, poetry2nix, cabal2nix,
-and naersk.
+parsed with `rnix`, and the user will be able to modify it.
 
 # Dependencies #
 
@@ -60,11 +49,11 @@ and the `skim` fuzzy finder for the cli.
 # Roadmap #
 
 - [x] Proof of concept
-- [ ] Flake Input management
-  - [ ] Add inputs
+- [x] Flake Input management
+  - [x] Add inputs
   - [ ] Remove inputs
   - [ ] Change inputs
-  - [ ] Query github
+  - [ ] Query github into skim (this is hard...may not be feasible..)
 - [ ] BuildInput management
   - [ ] Query nixpkgs
   - [ ] Modify buildInputs
