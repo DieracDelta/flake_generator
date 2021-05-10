@@ -1,9 +1,10 @@
-use crate::parser::input_utils::{gen_attr_set, merge_attr_sets, new_key, new_string, wrap_root};
+use crate::parser::input_utils::{merge_attr_sets, new_attr_set, new_key, new_string, wrap_root};
 use crate::parser::utils::{node_to_string, string_to_node};
+use crate::SmlStr;
+use crate::SyntaxStructure;
 
 use rnix::{types::*, SyntaxKind::*};
 
-// TODO remove all the gen stuff and jsut use into trait
 #[test]
 pub fn check_new_string() {
     let phrase = "hello_world".to_string();
@@ -20,10 +21,16 @@ pub fn check_new_string() {
 #[test]
 pub fn check_new_attr_set() {
     let attrset = vec![
-        ("test1".to_string(), "value1".to_string()),
-        ("test2".to_string(), "value2".to_string()),
+        (
+            SyntaxStructure::Key(SmlStr::new_inline("test1")).into(),
+            SyntaxStructure::StringLiteral(SmlStr::new_inline("value1")).into(),
+        ),
+        (
+            SyntaxStructure::Key(SmlStr::new_inline("test2")).into(),
+            SyntaxStructure::StringLiteral(SmlStr::new_inline("value2")).into(),
+        ),
     ];
-    let result = gen_attr_set(attrset);
+    let result = new_attr_set(attrset);
     let root = wrap_root(result);
     // TODO separate this out into a dump ast method..
     //let result = Root::cast(root).unwrap();
@@ -39,10 +46,16 @@ pub fn check_new_attr_set() {
 #[test]
 pub fn check_merge_attr_set() {
     let attrset = vec![
-        ("test1".to_string(), "value1".to_string()),
-        ("test2".to_string(), "value2".to_string()),
+        (
+            SyntaxStructure::Key(SmlStr::new_inline("test1")).into(),
+            SyntaxStructure::StringLiteral(SmlStr::new_inline("value1")).into(),
+        ),
+        (
+            SyntaxStructure::Key(SmlStr::new_inline("test2")).into(),
+            SyntaxStructure::StringLiteral(SmlStr::new_inline("value2")).into(),
+        ),
     ];
-    let result = gen_attr_set(attrset);
+    let result = new_attr_set(attrset);
     let merged = merge_attr_sets(result.clone(), result);
     let root = wrap_root(merged);
     assert_eq!(

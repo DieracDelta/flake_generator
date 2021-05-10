@@ -1,15 +1,7 @@
-#![feature(iter_intersperse)]
 use crate::parser::utils::{string_to_node, NixNode};
 use crate::SmlStr;
-use anyhow::{anyhow, bail};
-use either::Either;
-use nixpkgs_fmt::reformat_node;
-use rnix::{parse, types::*, NixLanguage, StrPart, SyntaxKind::*};
-use rowan::{
-    api::SyntaxNode, GreenNode, GreenNodeBuilder, GreenNodeData, GreenToken, Language, NodeOrToken,
-};
-use std::borrow::Borrow;
-use std::ops::Deref;
+use rnix::{NixLanguage, SyntaxKind::*};
+use rowan::{api::SyntaxNode, GreenNode, GreenNodeBuilder, GreenToken, Language, NodeOrToken};
 use std::string::ToString;
 
 #[derive(Debug, Clone, Eq, PartialEq, Default)]
@@ -38,12 +30,14 @@ pub fn new_string(s: String) -> GreenNode {
     node.finish_node();
     node.finish()
 }
-//TOKEN_WHITESPACE(" ") 18..19
-//NODE_IDENT 19..23 {
-//TOKEN_IDENT("true") 19..23
-//}
-//TOKEN_SEMICOLON(";") 23..
 
+/// creates a bool literal. Example of what
+/// this should look like structurally:
+///
+/// NODE_IDENT {
+///   TOKEN_IDENT("true")
+/// }
+///TOKEN_SEMICOLON(";") 23..
 pub fn new_bool_literal(b: bool) -> GreenNode {
     let mut node = GreenNodeBuilder::new();
     let token_ident_kind: rowan::SyntaxKind = NixLanguage::kind_to_raw(TOKEN_IDENT);
@@ -58,12 +52,6 @@ pub fn new_key(s: String) -> GreenNode {
     let kind: rowan::SyntaxKind = NixLanguage::kind_to_raw(NODE_KEY);
     let children = vec![NodeOrToken::Node(new_string(s))];
     GreenNode::new(kind, children)
-}
-
-pub fn gen_key_value(key: String, value: String) -> GreenNode {
-    let key_node: GreenNode = new_key(key);
-    let value_node: GreenNode = new_string(value);
-    new_key_value(key_node, value_node)
 }
 
 pub fn new_key_value(key: GreenNode, value: GreenNode) -> GreenNode {
@@ -81,15 +69,6 @@ pub fn new_key_value(key: GreenNode, value: GreenNode) -> GreenNode {
         NodeOrToken::Token(GreenToken::new(whitespace_kind, "\n")),
     ];
     GreenNode::new(kind, children)
-}
-
-// TODO merge with new_
-pub fn gen_attr_set(attr_pairs: Vec<(String, String)>) -> GreenNode {
-    let new_attr_pairs: Vec<(GreenNode, GreenNode)> = attr_pairs
-        .iter()
-        .map(|(key, value)| (new_key(key.to_string()), new_string(value.to_string())))
-        .collect();
-    new_attr_set(new_attr_pairs)
 }
 
 pub fn merge_attr_sets(a1: GreenNode, a2: GreenNode) -> GreenNode {

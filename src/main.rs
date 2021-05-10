@@ -91,53 +91,49 @@ fn main() {
             UserPrompt::Rust(prompt) => {
                 prompt.process_prompt(&mut action_stack, &mut user_data);
             }
-            UserPrompt::Other(other) => {
-                match cur_action {
-                    UserAction::Rust(action) => {
-                        action
-                            .clone()
-                            .process_action(other, &mut action_stack, &mut user_data)
-                    }
-                    UserAction::QueryInputUrl => {
-                        let mut i = user_data.new_input.unwrap_or_default();
-                        i.url = Some(SyntaxStructure::StringLiteral(other));
-                        user_data.new_input = Some(i);
-                        action_stack.pop();
-                    }
-                    UserAction::QueryInputName => {
-                        let mut i = user_data.new_input.unwrap_or_default();
-                        i.name = Some(SyntaxStructure::StringLiteral(other));
-                        user_data.new_input = Some(i);
-                        action_stack.pop();
-                    }
-                    UserAction::ModifyExisting => {
-                        let filename = other.0.as_str();
-                        match filename_to_node(filename, &other) {
-                            Err(err_msg) => action_stack.push(UserAction::Error(err_msg)),
-                            Ok(root) => {
-                                user_data.filename = Some(filename.to_string());
-                                user_data.root = Some(root);
-                                action_stack.push(UserAction::IntroParsed);
-                            }
+            UserPrompt::Other(other) => match cur_action {
+                UserAction::Rust(action) => {
+                    action
+                        .clone()
+                        .process_action(other, &mut action_stack, &mut user_data)
+                }
+                UserAction::QueryInputUrl => {
+                    let mut i = user_data.new_input.unwrap_or_default();
+                    i.url = Some(SyntaxStructure::StringLiteral(other));
+                    user_data.new_input = Some(i);
+                    action_stack.pop();
+                }
+                UserAction::QueryInputName => {
+                    let mut i = user_data.new_input.unwrap_or_default();
+                    i.name = Some(SyntaxStructure::StringLiteral(other));
+                    user_data.new_input = Some(i);
+                    action_stack.pop();
+                }
+                UserAction::ModifyExisting => {
+                    let filename = other.0.as_str();
+                    match filename_to_node(filename, &other) {
+                        Err(err_msg) => action_stack.push(UserAction::Error(err_msg)),
+                        Ok(root) => {
+                            user_data.filename = Some(filename.to_string());
+                            user_data.root = Some(root);
+                            action_stack.push(UserAction::IntroParsed);
                         }
                     }
-                    UserAction::RemoveInput => {
-                        let inputs = user_data.inputs.as_ref().unwrap();
-                        let new_root = remove_input(
-                            user_data.root.as_ref().unwrap(),
-                            other.0.as_str(),
-                            Some(inputs),
-                        )
-                        .unwrap();
-                        user_data.new_root(new_root);
-                        action_stack.pop();
-
-                        // TODO add in a "write to file" option at the end instead of writing after every modification
-                        action_stack.push(UserAction::IntroParsed);
-                    }
-                    _ => unimplemented!(),
                 }
-            }
+                UserAction::RemoveInput => {
+                    let inputs = user_data.inputs.as_ref().unwrap();
+                    let new_root = remove_input(
+                        user_data.root.as_ref().unwrap(),
+                        other.0.as_str(),
+                        Some(inputs),
+                    )
+                    .unwrap();
+                    user_data.new_root(new_root);
+                    action_stack.pop();
+                    action_stack.push(UserAction::IntroParsed);
+                }
+                _ => unimplemented!(),
+            },
             UserPrompt::Bool(b) => match cur_action {
                 UserAction::IsInputFlake => {
                     action_stack.pop();
@@ -159,7 +155,6 @@ fn main() {
                         .unwrap()
                         .into();
                     let augmented_input = merge_attr_sets(inputs.green().to_owned(), new_input);
-                    println!("aug: {:?}", augmented_input.to_string());
                     let idx = get_node_idx(&inputs).unwrap();
                     let parent = inputs.parent().unwrap();
                     let new_root = inputs
