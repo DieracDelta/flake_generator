@@ -4,6 +4,7 @@ use crate::parser::utils::{get_inputs, NixNode};
 
 use std::{collections::HashMap, io::Cursor, str::FromStr};
 
+use crate::parser::input_utils::Input;
 use parse_display::{Display, FromStr};
 use skim::prelude::*;
 use smol_str::SmolStr;
@@ -51,12 +52,14 @@ pub(crate) struct UserMetadata {
     pub(crate) inputs: Option<HashMap<String, NixNode>>,
     pub(crate) filename: Option<String>,
     pub(crate) rust_options: rust_nix_templater::Options,
+    pub(crate) new_input: Option<Input>,
 }
 
 impl UserMetadata {
     pub(crate) fn new_root(&mut self, root: NixNode) {
         self.inputs = None;
         self.root = Some(root);
+        self.new_input = None;
     }
 
     fn ensure_inputs(&mut self) -> &mut HashMap<String, NixNode> {
@@ -75,7 +78,12 @@ impl UserMetadata {
                 UserPrompt::Back,
             ],
             UserAction::CreateNew => vec![UserPrompt::SelectLang(Lang::Rust), UserPrompt::Back],
-            UserAction::ModifyExisting => vec![],
+            UserAction::ModifyExisting | UserAction::QueryInputName | UserAction::QueryInputUrl => {
+                vec![]
+            }
+            UserAction::IsInputFlake | UserAction::ConfirmInputCorrect => {
+                vec![UserPrompt::Bool(true), UserPrompt::Bool(false)]
+            }
             UserAction::RemoveInput => {
                 // check cache
                 self.ensure_inputs()
@@ -84,6 +92,7 @@ impl UserMetadata {
                     .chain(std::iter::once(UserPrompt::Back))
                     .collect()
             }
+            UserAction::ConfirmWrite => vec![UserPrompt::Bool(true), UserPrompt::Bool(false)],
             UserAction::Error(_) => vec![UserPrompt::Back, UserPrompt::StartOver, UserPrompt::Exit],
             x => unimplemented!("prompt not implemented for: {:?}", x),
         }
@@ -124,6 +133,8 @@ pub(crate) enum UserPrompt {
     #[display("{0}")]
     SelectLang(Lang),
     #[display("{0}")]
+    Bool(bool),
+    #[display("{0}")]
     Other(SmlStr),
 }
 
@@ -141,18 +152,24 @@ pub(crate) enum UserAction {
     AddDep,
     #[display("Remove a dependency from your flake.\nPlease select a input to remove.")]
     RemoveDep,
-    #[display(
-        "Add an input to your flake.\nPlease input a flake url and indicate if it's a flake"
-    )]
+    #[display("Add an input to your flake.")]
     AddInput,
     #[display("Please select an input to remove.")]
     RemoveInput,
     #[display("Is the input a flake?")]
     IsInputFlake,
+    #[display("Provide input name.")]
+    QueryInputName,
+    #[display("Provide input URL.")]
+    QueryInputUrl,
     #[display("Encountered an error: {0}")]
     Error(anyhow::Error),
     #[display("{0}")]
     Rust(rust::Action),
+    #[display("Is the input correct?")]
+    ConfirmInputCorrect,
+    #[display("Write to file?")]
+    ConfirmWrite,
 }
 
 #[derive(Eq, PartialEq, Debug, Copy, Clone, Display, FromStr)]
