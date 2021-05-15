@@ -411,6 +411,7 @@ dependencies = [
  "either",
  "nixpkgs-fmt",
  "parse-display",
+ "regex",
  "rnix",
  "rowan",
  "rust-nix-templater",

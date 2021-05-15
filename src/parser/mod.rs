@@ -2,6 +2,7 @@ pub mod file;
 pub mod utils;
 // TODO better name
 pub mod input_utils;
+pub mod url;
 
 #[cfg(test)]
 mod utils_tests;

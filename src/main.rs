@@ -7,9 +7,7 @@ use nixpkgs_fmt::reformat_node;
 use parser::file::{filename_to_node, write_to_node};
 use parser::input_utils::{merge_attr_sets, Input};
 use parser::utils::{get_node_idx, remove_input, search_for_attr, NixNode};
-use rowan::GreenNode;
-use rowan::NodeOrToken;
-use rowan::SyntaxNode;
+use rowan::{GreenNode, NodeOrToken, SyntaxNode};
 use user::*;
 
 struct ActionStack {
@@ -28,9 +26,7 @@ impl ActionStack {
     }
 
     fn push_seq(&mut self, actions: impl IntoIterator<Item = UserAction>) {
-        actions
-            .into_iter()
-            .for_each(|action| self.inner.push(action))
+        self.inner.extend(actions.into_iter());
     }
 
     fn pop(&mut self) -> UserAction {
@@ -137,11 +133,7 @@ fn main() {
             UserPrompt::Bool(b) => match cur_action {
                 UserAction::IsInputFlake => {
                     action_stack.pop();
-                    let mut i = user_data
-                        .new_input
-                        .as_ref()
-                        .and_then(|x: &Input| Some(x.clone()))
-                        .unwrap_or_default();
+                    let mut i = user_data.new_input.as_ref().cloned().unwrap_or_default();
                     i.is_flake = Some(SyntaxStructure::Bool(b));
                     user_data.new_input = Some(i);
                 }
