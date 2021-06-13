@@ -4,7 +4,7 @@ use crate::parser::utils::{get_inputs, NixNode};
 
 use std::{collections::HashMap, io::Cursor, str::FromStr};
 
-use crate::parser::input_utils::Input;
+use crate::parser::input_utils::NixFlakeInput;
 use parse_display::{Display, FromStr};
 use skim::prelude::*;
 use smol_str::SmolStr;
@@ -52,7 +52,7 @@ pub(crate) struct UserMetadata {
     pub(crate) inputs: Option<HashMap<String, NixNode>>,
     pub(crate) filename: Option<String>,
     pub(crate) rust_options: rust_nix_templater::Options,
-    pub(crate) new_input: Option<Input>,
+    pub(crate) new_input: Option<NixFlakeInput>,
 }
 
 impl UserMetadata {

@@ -1,11 +1,12 @@
+mod ir;
 mod parser;
 mod user;
 
-use crate::parser::input_utils::SyntaxStructure;
+//use crate::parser::input_utils::SyntaxStructure;
 use anyhow::anyhow;
 use nixpkgs_fmt::reformat_node;
 use parser::file::{filename_to_node, write_to_node};
-use parser::input_utils::{merge_attr_sets, Input};
+use parser::input_utils::{merge_attr_sets, NixFlakeInput, NixKey, NixStringLiteral};
 use parser::utils::{get_node_idx, remove_input, search_for_attr, NixNode};
 use rowan::{GreenNode, NodeOrToken, SyntaxNode};
 use user::*;
@@ -95,13 +96,14 @@ fn main() {
                 }
                 UserAction::QueryInputUrl => {
                     let mut i = user_data.new_input.unwrap_or_default();
-                    i.url = Some(SyntaxStructure::StringLiteral(other));
+                    i.url = Some(NixStringLiteral { val: other });
                     user_data.new_input = Some(i);
                     action_stack.pop();
                 }
                 UserAction::QueryInputName => {
                     let mut i = user_data.new_input.unwrap_or_default();
-                    i.name = Some(SyntaxStructure::StringLiteral(other));
+                    // TODO uncomment
+                    //i.name = Some(NixKey { val: other });
                     user_data.new_input = Some(i);
                     action_stack.pop();
                 }
@@ -134,7 +136,7 @@ fn main() {
                 UserAction::IsInputFlake => {
                     action_stack.pop();
                     let mut i = user_data.new_input.as_ref().cloned().unwrap_or_default();
-                    i.is_flake = Some(SyntaxStructure::Bool(b));
+                    //i.is_flake = Some(SyntaxStructure::Bool(b));
                     user_data.new_input = Some(i);
                 }
                 UserAction::ConfirmInputCorrect => {
