@@ -1,9 +1,14 @@
+mod ir;
 mod parser;
 mod user;
 
+//use crate::parser::input_utils::SyntaxStructure;
 use anyhow::anyhow;
+use nixpkgs_fmt::reformat_node;
 use parser::file::{filename_to_node, write_to_node};
-use parser::utils::remove_input;
+use parser::input_utils::{merge_attr_sets, NixFlakeInput, NixKey, NixStringLiteral};
+use parser::utils::{get_node_idx, remove_input, search_for_attr, NixNode};
+use rowan::{GreenNode, NodeOrToken, SyntaxNode};
 use user::*;
 
 struct ActionStack {
@@ -19,6 +24,10 @@ impl ActionStack {
 
     fn push(&mut self, action: UserAction) {
         self.inner.push(action)
+    }
+
+    fn push_seq(&mut self, actions: impl IntoIterator<Item = UserAction>) {
+        self.inner.extend(actions.into_iter());
     }
 
     fn pop(&mut self) -> UserAction {
@@ -64,7 +73,14 @@ fn main() {
             UserPrompt::Create => action_stack.push(UserAction::CreateNew),
             UserPrompt::Modify => action_stack.push(UserAction::ModifyExisting),
             UserPrompt::DeleteInput => action_stack.push(UserAction::RemoveInput),
-            UserPrompt::AddInput => action_stack.push(UserAction::AddInput),
+            UserPrompt::AddInput => action_stack.push_seq(vec![
+                UserAction::IntroParsed,
+                UserAction::ConfirmWrite,
+                UserAction::ConfirmInputCorrect,
+                UserAction::QueryInputName,
+                UserAction::QueryInputUrl,
+                UserAction::IsInputFlake,
+            ]),
             UserPrompt::SelectLang(lang) => match lang {
                 Lang::Rust => action_stack.push(UserAction::Rust(user::rust::Action::Intro)),
                 lang => todo!("lang {}", lang),
@@ -72,41 +88,91 @@ fn main() {
             UserPrompt::Rust(prompt) => {
                 prompt.process_prompt(&mut action_stack, &mut user_data);
             }
-            UserPrompt::Other(other) => {
-                match cur_action {
-                    UserAction::Rust(action) => {
-                        action
-                            .clone()
-                            .process_action(other, &mut action_stack, &mut user_data)
-                    }
-                    UserAction::ModifyExisting => {
-                        let filename = other.0.as_str();
-                        match filename_to_node(filename, &other) {
-                            Err(err_msg) => action_stack.push(UserAction::Error(err_msg)),
-                            Ok(root) => {
-                                user_data.filename = Some(filename.to_string());
-                                user_data.root = Some(root);
-                                action_stack.push(UserAction::IntroParsed);
-                            }
+            UserPrompt::Other(other) => match cur_action {
+                UserAction::Rust(action) => {
+                    action
+                        .clone()
+                        .process_action(other, &mut action_stack, &mut user_data)
+                }
+                UserAction::QueryInputUrl => {
+                    let mut i = user_data.new_input.unwrap_or_default();
+                    i.url = Some(NixStringLiteral { val: other });
+                    user_data.new_input = Some(i);
+                    action_stack.pop();
+                }
+                UserAction::QueryInputName => {
+                    let mut i = user_data.new_input.unwrap_or_default();
+                    // TODO uncomment
+                    //i.name = Some(NixKey { val: other });
+                    user_data.new_input = Some(i);
+                    action_stack.pop();
+                }
+                UserAction::ModifyExisting => {
+                    let filename = other.0.as_str();
+                    match filename_to_node(filename, &other) {
+                        Err(err_msg) => action_stack.push(UserAction::Error(err_msg)),
+                        Ok(root) => {
+                            user_data.filename = Some(filename.to_string());
+                            user_data.root = Some(root);
+                            action_stack.push(UserAction::IntroParsed);
                         }
                     }
-                    UserAction::RemoveInput => {
-                        let inputs = user_data.inputs.as_ref().unwrap();
-                        let new_root = remove_input(
-                            user_data.root.as_ref().unwrap(),
-                            other.0.as_str(),
-                            Some(inputs),
-                        )
-                        .unwrap();
-                        user_data.new_root(new_root);
-                        write_to_node(&user_data);
-
-                        // TODO add in a "write to file" option at the end instead of writing after every modification
-                        action_stack.push(UserAction::IntroParsed);
-                    }
-                    _ => unimplemented!(),
                 }
-            }
+                UserAction::RemoveInput => {
+                    let inputs = user_data.inputs.as_ref().unwrap();
+                    let new_root = remove_input(
+                        user_data.root.as_ref().unwrap(),
+                        other.0.as_str(),
+                        Some(inputs),
+                    )
+                    .unwrap();
+                    user_data.new_root(new_root);
+                    action_stack.pop();
+                    action_stack.push(UserAction::IntroParsed);
+                }
+                _ => unimplemented!(),
+            },
+            UserPrompt::Bool(b) => match cur_action {
+                UserAction::IsInputFlake => {
+                    action_stack.pop();
+                    let mut i = user_data.new_input.as_ref().cloned().unwrap_or_default();
+                    //i.is_flake = Some(SyntaxStructure::Bool(b));
+                    user_data.new_input = Some(i);
+                }
+                UserAction::ConfirmInputCorrect => {
+                    let root = user_data.root.as_ref().unwrap();
+                    let (inputs, _, _) = search_for_attr("inputs", 1, root, None)[0].clone();
+                    let new_input: GreenNode = user_data
+                        .new_input
+                        .as_ref()
+                        .and_then(|x| Some(x.clone()))
+                        .unwrap()
+                        .into();
+                    let augmented_input = merge_attr_sets(inputs.green().to_owned(), new_input);
+                    let idx = get_node_idx(&inputs).unwrap();
+                    let parent = inputs.parent().unwrap();
+                    let new_root = inputs
+                        .parent()
+                        .unwrap()
+                        .green()
+                        .to_owned()
+                        .replace_child(idx, NodeOrToken::Node(augmented_input));
+                    let mut new_root_wrapped: NixNode =
+                        SyntaxNode::new_root(parent.replace_with(new_root));
+                    while let Some(parent) = new_root_wrapped.parent() {
+                        new_root_wrapped = parent;
+                    }
+                    action_stack.pop();
+                    user_data.new_root(reformat_node(&new_root_wrapped))
+                }
+                UserAction::ConfirmWrite => {
+                    action_stack.pop();
+                    if b {
+                        write_to_node(&user_data)
+                    }
+                }
+                _ => unimplemented!("bool not implemented in this case {}", cur_action),
+            },
         }
     }
 }

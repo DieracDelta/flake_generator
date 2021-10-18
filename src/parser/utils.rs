@@ -7,6 +7,33 @@ pub(crate) type NixNode = SyntaxNode<NixLanguage>;
 use std::collections::HashMap;
 
 /// Precondition: node is a attribute and parent is an attribute set
+/// returns the index in the parent tree of the node
+pub fn get_node_idx(node: &NixNode) -> anyhow::Result<usize> {
+    let parent = node.parent().unwrap();
+    match parent.kind() {
+        NODE_ATTR_SET | NODE_PATTERN | NODE_KEY_VALUE => {
+            let mut child_node_idxs =
+                parent
+                    .green()
+                    .children()
+                    .enumerate()
+                    .filter_map(|(idx, val)| {
+                        // the '.to_owned()' is required to turn GreenNodeData into GreenNode
+                        // because GreenNodeData doesn't implement PartialEq
+                        val.into_node().and_then(|inner_node| {
+                            (*inner_node == node.green().to_owned()).then(|| idx)
+                        })
+                    });
+            Ok(child_node_idxs.next().expect("Child not in parent tree"))
+        }
+        x => Err(anyhow!(format!(
+            "Precondition violated: parent {:?} was not attribute set.",
+            x
+        ))),
+    }
+}
+
+/// Precondition: node is a attribute and parent is an attribute set
 /// (1) get parent attrset
 /// (2) iterate through parent's children nodes, searching for node to delete
 /// (4) return a modified tree with node deleted
@@ -89,7 +116,7 @@ pub fn string_to_node(content: String) -> anyhow::Result<NixNode> {
 /// "{\"foo\": \"bar\"}"
 /// ```
 /// Will return [bar_node, "foo", 1]
-fn search_for_attr(
+pub fn search_for_attr(
     attr: &str,
     max_depth: usize,
     root_node: &NixNode,
@@ -255,6 +282,7 @@ pub fn remove_input(
     dead_node_name: &str,
     user_inputs: Option<&HashMap<String, NixNode>>,
 ) -> anyhow::Result<NixNode> {
+    // have to use outer scoped lifetime
     let tmp;
     let inputs = match user_inputs {
         Some(inputs) => inputs,
