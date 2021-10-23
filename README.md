@@ -1,4 +1,4 @@
-# Imperative Management OF Declarative Packages #
+# Imperative Management of Declarative Packages #
 
 Nix flakes are a really fantastic way to finely manage project dependencies.
 However, writing Nix expressions to specify dependencies is subtle
