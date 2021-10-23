@@ -1,4 +1,4 @@
-# IMPERATIVE MANAGEMENT OF DECLARATIVE PACKAGES !!! #
+# Imperative Management OF Declarative Packages #
 
 Nix flakes are a really fantastic way to finely manage project dependencies.
 However, writing Nix expressions to specify dependencies is subtle
@@ -11,7 +11,7 @@ Turns out *yes*.  Demo:
 
 
 
-# GOAL: AVOID WRITING BOILERPLATE CODE #
+# Goal: Avoid writing boilerplate code #
 
 The goal is to write an imperative CLI to automate the generation
 of the declarative dependencies specified in a flake.
@@ -21,7 +21,7 @@ flake that works, and simply tweaking the
 name and list of buildInputs. The goal is to streamline
 that process and dodge writing any boilerplate code.
 
-# How is this any different than `nix flake init` ?? #
+# How is this any different than `nix flake init` ? #
 
 This is meant to be more powerful. Templates generate
 boilerplate code, but without interaction. Interaction
