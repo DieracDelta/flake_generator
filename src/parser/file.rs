@@ -1,11 +1,12 @@
 use crate::parser::utils::{string_to_node, NixNode};
-use crate::user::{SmlStr, UserMetadata};
+use crate::user::UserMetadata;
 use anyhow::bail;
+use smol_str::SmolStr;
 use std::fs;
 use std::io::Write;
 
 // TODO shouldn't we be concatenating the filename to the absolute path?
-pub fn filename_to_node(filename: &str, full_path: &SmlStr) -> anyhow::Result<NixNode> {
+pub fn filename_to_node(filename: &str, full_path: &SmolStr) -> anyhow::Result<NixNode> {
     let content = match fs::read_to_string(filename) {
         Ok(content) => content,
         Err(err) => {
