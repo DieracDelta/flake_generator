@@ -80,7 +80,7 @@ fn main() {
                             .process_action(other, &mut action_stack, &mut user_data)
                     }
                     UserAction::ModifyExisting => {
-                        let filename = other.0.as_str();
+                        let filename = other.as_str();
                         match filename_to_node(filename, &other) {
                             Err(err_msg) => action_stack.push(UserAction::Error(err_msg)),
                             Ok(root) => {
@@ -94,7 +94,7 @@ fn main() {
                         let inputs = user_data.inputs.as_ref().unwrap();
                         let new_root = remove_input(
                             user_data.root.as_ref().unwrap(),
-                            other.0.as_str(),
+                            other.as_str(),
                             Some(inputs),
                         )
                         .unwrap();

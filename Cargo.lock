@@ -848,9 +848,12 @@ dependencies = [
 
 [[package]]
 name = "smol_str"
-version = "0.1.17"
+version = "0.1.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6ca0f7ce3a29234210f0f4f0b56f8be2e722488b95cb522077943212da3b32eb"
+checksum = "4f9cf146df2a4cda63b9bb98fffa4b97ae52cb5471a1e946ce9089f25c6e0aca"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "standback"

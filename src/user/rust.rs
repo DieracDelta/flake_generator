@@ -1,43 +1,44 @@
 use anyhow::anyhow;
 use parse_display::{Display, FromStr};
 use rust_nix_templater::{options::RustToolchainChannel, *};
+use smol_str::SmolStr;
 
 use crate::ActionStack;
 
-use super::{SmlStr, UserAction, UserMetadata, UserPrompt};
+use super::{UserAction, UserMetadata, UserPrompt};
 
 #[derive(Debug, Clone, PartialEq, Eq, Display, FromStr)]
 pub(crate) enum Prompt {
     #[display("generate flake")]
     Generate,
     #[display("set package name ({0})")]
-    SetPackageName(SmlStr),
+    SetPackageName(SmolStr),
     #[display("set executable name ({0})")]
-    SetExecName(SmlStr),
+    SetExecName(SmolStr),
     #[display("set description ({0})")]
-    SetDescription(SmlStr),
+    SetDescription(SmolStr),
     #[display("set long description ({0})")]
-    SetLongDescription(SmlStr),
+    SetLongDescription(SmolStr),
     #[display("set toolchain ({0})")]
     SetToolchain(RustToolchainChannel),
     #[display("set license ({0})")]
-    SetLicense(SmlStr),
+    SetLicense(SmolStr),
     #[display("set desktop file desktop name ({0})")]
-    SetDesktopFileName(SmlStr),
+    SetDesktopFileName(SmolStr),
     #[display("set desktop file generic name ({0})")]
-    SetDesktopFileGenericName(SmlStr),
+    SetDesktopFileGenericName(SmolStr),
     #[display("set desktop file comment ({0})")]
-    SetDesktopFileComment(SmlStr),
+    SetDesktopFileComment(SmolStr),
     #[display("set desktop file categories ({0})")]
-    SetDesktopFileCategories(SmlStr),
+    SetDesktopFileCategories(SmolStr),
     #[display("choose icon path ({0})")]
-    SetIcon(SmlStr),
+    SetIcon(SmolStr),
     #[display("set systems [{0}]")]
     SetSystems(String),
     #[display("set cachix name ({0})")]
-    SetCachixName(SmlStr),
+    SetCachixName(SmolStr),
     #[display("set cachix public key ({0})")]
-    SetCachixKey(SmlStr),
+    SetCachixKey(SmolStr),
     #[display("toggle build outputs ({0})")]
     ToggleBuildOutputs(bool),
     #[display("toggle app outputs ({0})")]
@@ -51,7 +52,7 @@ pub(crate) enum Prompt {
     #[display("{0} channel")]
     ChooseToolchain(RustToolchainChannel),
     #[display("{0} license")]
-    ChooseLicense(SmlStr),
+    ChooseLicense(SmolStr),
 }
 
 impl From<Prompt> for UserPrompt {
@@ -167,7 +168,7 @@ impl From<Action> for UserAction {
 impl Action {
     pub(crate) fn get_prompt_items(&self, user_data: &mut UserMetadata) -> Vec<UserPrompt> {
         let map_or_def =
-            |opt: Option<&String>| opt.map_or_else(|| SmlStr::new_inline("not set"), Into::into);
+            |opt: Option<&String>| opt.map_or_else(|| SmolStr::new_inline("not set"), Into::into);
         match self {
             Action::Intro => vec![
                 Prompt::SetSystems(
@@ -221,7 +222,7 @@ impl Action {
                 .into(),
                 Prompt::SetPackageName(user_data.rust_options.package_name.as_ref().map_or_else(
                     || {
-                        SmlStr::new_inline(if std::path::Path::new("./Cargo.toml").exists() {
+                        SmolStr::new_inline(if std::path::Path::new("./Cargo.toml").exists() {
                             "not set"
                         } else {
                             "not set, required"
@@ -255,9 +256,9 @@ impl Action {
                 UserPrompt::Back,
             ],
             Action::SetLicense => vec![
-                Prompt::ChooseLicense(SmlStr::new_inline("MIT")).into(),
-                Prompt::ChooseLicense(SmlStr::new_inline("GPLv3")).into(),
-                Prompt::ChooseLicense(SmlStr::new_inline("GPLv2")).into(),
+                Prompt::ChooseLicense(SmolStr::new_inline("MIT")).into(),
+                Prompt::ChooseLicense(SmolStr::new_inline("GPLv3")).into(),
+                Prompt::ChooseLicense(SmolStr::new_inline("GPLv2")).into(),
                 UserPrompt::Back,
             ],
         }
@@ -266,12 +267,12 @@ impl Action {
     // Called when `UserPrompt::Other(String)`
     pub(crate) fn process_action(
         &self,
-        other: SmlStr,
+        other: SmolStr,
         action_stack: &mut ActionStack,
         user_data: &mut UserMetadata,
     ) {
         let mut rust_options = &mut user_data.rust_options;
-        let mut other = other.0.trim().to_string();
+        let mut other = other.trim().to_string();
         let opt = match self {
             Action::SetCachixKey => &mut rust_options.cachix_public_key,
             Action::SetCachixName => &mut rust_options.cachix_name,

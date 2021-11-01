@@ -2,48 +2,10 @@ pub mod rust;
 
 use crate::parser::utils::{get_inputs, NixNode};
 
-use std::{collections::HashMap, io::Cursor, str::FromStr};
-
 use parse_display::{Display, FromStr};
 use skim::prelude::*;
 use smol_str::SmolStr;
-
-/// `SmlStr` wraps [`SmolStr`] to additionally provide a [`FromStr`] implementation.
-/// Can be removed after https://github.com/rust-analyzer/smol_str/issues/31 is fixed.
-#[derive(Debug, Default, Clone, PartialEq, Eq, Display)]
-pub struct SmlStr(pub SmolStr);
-
-impl SmlStr {
-    pub const fn new_inline(s: &str) -> Self {
-        Self(SmolStr::new_inline(s))
-    }
-}
-
-impl From<SmlStr> for String {
-    fn from(x: SmlStr) -> String {
-        x.0.into()
-    }
-}
-
-impl From<String> for SmlStr {
-    fn from(s: String) -> Self {
-        Self(s.into())
-    }
-}
-
-impl From<&String> for SmlStr {
-    fn from(s: &String) -> Self {
-        Self(s.into())
-    }
-}
-
-impl FromStr for SmlStr {
-    type Err = std::convert::Infallible;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(SmlStr(s.into()))
-    }
-}
+use std::{collections::HashMap, io::Cursor, str::FromStr};
 
 #[derive(Debug, Default, Clone)]
 pub(crate) struct UserMetadata {
@@ -124,7 +86,7 @@ pub(crate) enum UserPrompt {
     #[display("{0}")]
     SelectLang(Lang),
     #[display("{0}")]
-    Other(SmlStr),
+    Other(SmolStr),
 }
 
 #[derive(Debug, Display)]
